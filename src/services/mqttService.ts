@@ -23,7 +23,6 @@ class MQTTService {
   private isConnected: boolean = false;
   private listeners: Map<string, Set<DeviceDataCallback>> = new Map();
   private reconnectAttempts: number = 0;
-  private connectionPromise: Promise<boolean> | null = null;
 
   /**
    * Initialize MQTT connection
@@ -35,13 +34,14 @@ class MQTTService {
       return new Promise((resolve) => {
         try {
           // Create MQTT client with correct TLS configuration for @taoqf/react-native-mqtt
+          // For TLS/SSL: use protocol: 'mqtts' and mqtts:// URL scheme
           this.client = connect(
-            `mqtt://${config.host}:${config.port}`,
+            `mqtts://${config.host}:${config.port}`,
             {
               username: config.username,
               password: config.password,
               clientId: config.clientId,
-              ssl: true,  // ✅ CORRECT: Use ssl: true for TLS
+              protocol: 'mqtts',  // ✅ CORRECT: Use 'mqtts' protocol for TLS
               clean: true,
               reconnectPeriod: 3000,
               connectTimeout: 10000,
@@ -51,7 +51,7 @@ class MQTTService {
           );
 
           // Handle connection
-          this.client.on('connect', () => {
+          this.client?.on('connect', () => {
             console.log('[MQTT] ✅ Connected to HiveMQ successfully');
             this.isConnected = true;
             this.reconnectAttempts = 0;
@@ -59,30 +59,30 @@ class MQTTService {
           });
 
           // Handle incoming messages
-          this.client.on('message', (topic: string, message: Buffer) => {
+          this.client?.on('message', (topic: string, message: Buffer) => {
             this.handleMessage(topic, message);
           });
 
           // Handle errors
-          this.client.on('error', (error: any) => {
+          this.client?.on('error', (error: any) => {
             console.error('[MQTT] ❌ Connection error:', error);
             this.isConnected = false;
           });
 
           // Handle disconnect
-          this.client.on('disconnect', () => {
+          this.client?.on('disconnect', () => {
             console.log('[MQTT] Disconnected from broker');
             this.isConnected = false;
           });
 
           // Handle reconnect
-          this.client.on('reconnect', () => {
+          this.client?.on('reconnect', () => {
             this.reconnectAttempts++;
             console.log('[MQTT] 🔄 Reconnecting... Attempt:', this.reconnectAttempts);
           });
 
           // Handle offline
-          this.client.on('offline', () => {
+          this.client?.on('offline', () => {
             console.log('[MQTT] ⚠️ Client went offline');
             this.isConnected = false;
           });
@@ -257,7 +257,7 @@ class MQTTService {
       console.log('[MQTT] 💡 Publishing LED command to:', topic, 'Message:', message);
 
       return new Promise((resolve) => {
-        this.client.publish(topic, message, { qos: 1 }, (err: any) => {
+        this.client?.publish(topic, message, { qos: 1 }, (err: any) => {
           if (err) {
             console.error('[MQTT] ❌ Publish error:', err);
             resolve(false);
@@ -294,7 +294,7 @@ class MQTTService {
       console.log('[MQTT] 📶 Publishing WiFi update to:', topic);
 
       return new Promise((resolve) => {
-        this.client.publish(topic, payload, { qos: 1 }, (err: any) => {
+        this.client?.publish(topic, payload, { qos: 1 }, (err: any) => {
           if (err) {
             console.error('[MQTT] ❌ Publish error:', err);
             resolve(false);
@@ -329,7 +329,7 @@ class MQTTService {
       console.log('[MQTT] 🔄 Publishing factory reset to:', topic);
 
       return new Promise((resolve) => {
-        this.client.publish(topic, payload, { qos: 1 }, (err: any) => {
+        this.client?.publish(topic, payload, { qos: 1 }, (err: any) => {
           if (err) {
             console.error('[MQTT] ❌ Publish error:', err);
             resolve(false);
