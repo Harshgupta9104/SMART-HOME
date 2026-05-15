@@ -6,20 +6,15 @@ import {
   Animated,
   TouchableOpacity,
   StatusBar,
-  Dimensions,
-  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPermissionService } from '../services/permissionService';
-
-const { width, height } = Dimensions.get('window');
 
 type StartupStage = 'splash' | 'permissions' | 'complete';
 
 const StartupScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
   const [stage, setStage] = useState<StartupStage>('splash');
-  const [isRequestingPermissions, setIsRequestingPermissions] = useState(false);
 
   // Animations
   const logoScale = new Animated.Value(0.8);
@@ -27,8 +22,6 @@ const StartupScreen = ({ navigation, route }: any) => {
   const textOpacity = new Animated.Value(0);
   const pulseAnim = new Animated.Value(1);
   const floatAnim = new Animated.Value(0);
-  const slideUpAnim = new Animated.Value(100);
-  const fadeInAnim = new Animated.Value(0);
 
   // Logo animation on mount
   useEffect(() => {
@@ -94,7 +87,6 @@ const StartupScreen = ({ navigation, route }: any) => {
 
   const handleContinue = async () => {
     console.log('[StartupScreen] User tapped Continue, requesting provisioning permissions');
-    setIsRequestingPermissions(true);
     
     try {
       // Request ALL provisioning permissions together during onboarding
@@ -120,7 +112,6 @@ const StartupScreen = ({ navigation, route }: any) => {
       }, 500);
     } catch (error) {
       console.error('[StartupScreen] Error requesting permissions:', error);
-      setIsRequestingPermissions(false);
     }
   };
 

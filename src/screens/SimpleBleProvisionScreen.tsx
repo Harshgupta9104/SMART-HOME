@@ -148,28 +148,19 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
     stopScanning();
     
     try {
-      console.log('[SimpleBLE] Reading device ID from:', device.id);
+      console.log('[SimpleBLE] Device selected:', device.name, 'MAC:', device.id);
       
-      // Read the actual device ID from ESP32
-      const actualDeviceId = await bleService.readDeviceId(device.id);
-      
-      if (actualDeviceId) {
-        console.log('[SimpleBLE] ✅ Got device ID:', actualDeviceId);
-        navigation.navigate('WiFiProvisioning', {
-          deviceId: actualDeviceId,  // ✅ Use the short chip ID (e.g., "26B7B3F8")
-          macAddress: device.id,      // Store MAC for reference
-          deviceName: device.name,
-          rssi: device.rssi,
-        });
-      } else {
-        console.error('[SimpleBLE] ❌ Failed to read device ID');
-        Alert.alert('Error', 'Could not read device ID. Please try again.');
-        // Restart scan
-        startScanning();
-      }
+      // Use BLE MAC address as device ID for now
+      // Device ID will be read during WiFi provisioning
+      navigation.navigate('WiFiProvisioning', {
+        deviceId: device.id,        // Use MAC address as device ID
+        macAddress: device.id,      // Store MAC for reference
+        deviceName: device.name,
+        rssi: device.rssi,
+      });
     } catch (error) {
       console.error('[SimpleBLE] Error selecting device:', error);
-      Alert.alert('Error', 'Failed to connect to device');
+      Alert.alert('Error', 'Failed to select device');
       startScanning();
     }
   };

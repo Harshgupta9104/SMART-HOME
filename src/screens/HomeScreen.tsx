@@ -46,17 +46,20 @@ const HomeScreen = ({ navigation }: any) => {
 
       // Subscribe to real-time metrics for each device
       provisionedDevices.forEach(device => {
+        // Use MQTT device ID if available, fallback to device.id
+        const mqttDeviceId = device.mqttDeviceId || device.id;
+        
         // Unsubscribe from old listener if exists
-        const oldUnsubscribe = unsubscribersRef.current.get(device.id);
+        const oldUnsubscribe = unsubscribersRef.current.get(mqttDeviceId);
         if (oldUnsubscribe) oldUnsubscribe();
 
-        // Subscribe to new metrics
-        const unsubscribe = deviceDataService.subscribe(device.id, (metrics: DeviceMetrics) => {
+        // Subscribe to new metrics using MQTT device ID
+        const unsubscribe = deviceDataService.subscribe(mqttDeviceId, (metrics: DeviceMetrics) => {
           // Metrics are cached in deviceDataService, no need to store locally
-          console.log('[HomeScreen] Device metrics updated:', device.id);
+          console.log('[HomeScreen] Device metrics updated:', mqttDeviceId);
         });
 
-        unsubscribersRef.current.set(device.id, unsubscribe);
+        unsubscribersRef.current.set(mqttDeviceId, unsubscribe);
       });
     } catch (error) {
       console.error('[HomeScreen] Error loading provisioned devices:', error);

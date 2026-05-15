@@ -103,6 +103,7 @@ export const useProvisioning = (): UseProvisioningReturn => {
       rememberNetwork: boolean,
       deviceId: string,
       deviceName: string,
+      mqttDeviceId: string | null,
       onProvisioningComplete?: (deviceId: string, deviceName: string) => void
     ) => {
       console.log('[Provisioning] Status update:', status);
@@ -134,6 +135,7 @@ export const useProvisioning = (): UseProvisioningReturn => {
             id: deviceId,
             name: deviceName,
             macAddress: deviceId,
+            mqttDeviceId: mqttDeviceId || deviceId, // ✅ SAVE MQTT DEVICE ID
             ssid: ssid,
             status: 'online' as const,
             lastSeen: new Date().toISOString(),
@@ -142,7 +144,7 @@ export const useProvisioning = (): UseProvisioningReturn => {
           };
 
           await storageService.addProvisionedDevice(device);
-          console.log('[Provisioning] Device stored locally');
+          console.log('[Provisioning] Device stored locally with MQTT ID:', mqttDeviceId);
           addLog('Device saved', 'success');
         } catch (err) {
           console.error('[Provisioning] Error storing device:', err);
@@ -214,11 +216,19 @@ export const useProvisioning = (): UseProvisioningReturn => {
         }, PROVISIONING_TIMEOUT);
 
         // Send WiFi credentials with proper callback
-        await bleService.sendWiFiCredentials(
+        let capturedMqttDeviceId: string | null = null;
+        
+        const mqttDeviceId = await bleService.sendWiFiCredentials(
           deviceId,
           ssid,
           password,
-          (status: string, isError?: boolean) => {
+          (status: string, isError?: boolean, returnedMqttId?: string) => {
+            // Capture MQTT device ID from any status update that provides it
+            if (returnedMqttId) {
+              capturedMqttDeviceId = returnedMqttId;
+              console.log('[Provisioning] 📱 Captured MQTT Device ID:', capturedMqttDeviceId);
+            }
+            
             if (isError) {
               setProvisioningState(ProvisioningState.ERROR);
               addLog(status, 'error');
@@ -226,10 +236,19 @@ export const useProvisioning = (): UseProvisioningReturn => {
               cleanup();
               setIsLoading(false);
             } else {
-              handleStatusUpdate(status, isError, ssid, password, rememberNetwork, deviceId, deviceName, onProvisioningComplete);
+              // Pass the captured MQTT device ID to handleStatusUpdate
+              // Use the returned ID if available, otherwise use the captured one
+              const finalMqttId = returnedMqttId || capturedMqttDeviceId;
+              handleStatusUpdate(status, isError, ssid, password, rememberNetwork, deviceId, deviceName, finalMqttId, onProvisioningComplete);
             }
           }
         );
+
+        // Also capture the return value from sendWiFiCredentials
+        if (mqttDeviceId && !capturedMqttDeviceId) {
+          capturedMqttDeviceId = mqttDeviceId;
+          console.log('[Provisioning] 📱 Captured MQTT Device ID from return value:', capturedMqttDeviceId);
+        }
 
         addLog('Credentials sent successfully', 'success');
       } catch (err) {

@@ -37,7 +37,10 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
     // Check MQTT connection status
     setMqttConnected(mqttService.isConnectedToMQTT());
 
-    const unsubscribe = deviceDataService.subscribe(device.id, (newMetrics: DeviceMetrics) => {
+    // Use MQTT device ID if available, fallback to device.id
+    const mqttDeviceId = device.mqttDeviceId || device.id;
+
+    const unsubscribe = deviceDataService.subscribe(mqttDeviceId, (newMetrics: DeviceMetrics) => {
       setMetrics(newMetrics);
       setLedStatus(newMetrics.ledStatus || false);
     });
@@ -48,7 +51,9 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
   const handleLEDToggle = async (value: boolean) => {
     setIsUpdatingLED(true);
     try {
-      const success = await deviceDataService.updateLEDStatus(device.id, value);
+      // Use MQTT device ID if available, fallback to device.id
+      const mqttDeviceId = device.mqttDeviceId || device.id;
+      const success = await deviceDataService.updateLEDStatus(mqttDeviceId, value);
       if (success) {
         setLedStatus(value);
       }

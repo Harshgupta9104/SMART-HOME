@@ -1,14 +1,7 @@
-/**
- * MQTT Service for React Native
- * Connects to HiveMQ broker and manages real-time device communication
- * Using @taoqf/react-native-mqtt library with proper configuration
- */
-
-import { connect, MqttClient } from '@taoqf/react-native-mqtt';
+import mqtt, { MqttClient } from 'mqtt';
 
 export interface MQTTConfig {
-  host: string;
-  port: number;
+  url: string;
   username: string;
   password: string;
   clientId: string;
@@ -18,179 +11,112 @@ export interface DeviceDataCallback {
   (data: any): void;
 }
 
-class MQTTService {
+class MqttService {
   private client: MqttClient | null = null;
   private isConnected: boolean = false;
   private listeners: Map<string, Set<DeviceDataCallback>> = new Map();
-  private reconnectAttempts: number = 0;
+  private messageCallbacks: Array<(topic: string, payload: string) => void> = [];
+  private connectCallbacks: Array<() => void> = [];
+  private errorCallbacks: Array<(error: Error) => void> = [];
+  private disconnectCallbacks: Array<() => void> = [];
 
   /**
-   * Initialize MQTT connection
+   * Initialize MQTT client
    */
-  async connect(config: MQTTConfig): Promise<boolean> {
+  async initialize(): Promise<void> {
     try {
-      console.log('[MQTT] Starting connection to:', config.host);
-
-      return new Promise((resolve) => {
-        try {
-          // Create MQTT client with correct TLS configuration for @taoqf/react-native-mqtt
-          // For TLS/SSL: use protocol: 'mqtts' and mqtts:// URL scheme
-          this.client = connect(
-            `mqtts://${config.host}:${config.port}`,
-            {
-              username: config.username,
-              password: config.password,
-              clientId: config.clientId,
-              protocol: 'mqtts',  // ✅ CORRECT: Use 'mqtts' protocol for TLS
-              clean: true,
-              reconnectPeriod: 3000,
-              connectTimeout: 10000,
-              keepalive: 60,
-              protocolVersion: 4,
-            }
-          );
-
-          // Handle connection
-          this.client?.on('connect', () => {
-            console.log('[MQTT] ✅ Connected to HiveMQ successfully');
-            this.isConnected = true;
-            this.reconnectAttempts = 0;
-            resolve(true);
-          });
-
-          // Handle incoming messages
-          this.client?.on('message', (topic: string, message: Buffer) => {
-            this.handleMessage(topic, message);
-          });
-
-          // Handle errors
-          this.client?.on('error', (error: any) => {
-            console.error('[MQTT] ❌ Connection error:', error);
-            this.isConnected = false;
-          });
-
-          // Handle disconnect
-          this.client?.on('disconnect', () => {
-            console.log('[MQTT] Disconnected from broker');
-            this.isConnected = false;
-          });
-
-          // Handle reconnect
-          this.client?.on('reconnect', () => {
-            this.reconnectAttempts++;
-            console.log('[MQTT] 🔄 Reconnecting... Attempt:', this.reconnectAttempts);
-          });
-
-          // Handle offline
-          this.client?.on('offline', () => {
-            console.log('[MQTT] ⚠️ Client went offline');
-            this.isConnected = false;
-          });
-
-          // Timeout after 20 seconds
-          const timeoutId = setTimeout(() => {
-            if (!this.isConnected) {
-              console.warn('[MQTT] ⏱️ Connection timeout after 20 seconds');
-              resolve(false);
-            }
-          }, 20000);
-
-          // Clear timeout if connected
-          if (this.client) {
-            this.client.once('connect', () => {
-              clearTimeout(timeoutId);
-            });
-          }
-        } catch (error) {
-          console.error('[MQTT] ❌ Error creating client:', error);
-          resolve(false);
-        }
-      });
+      console.log('[MQTT] 🔧 Initializing MQTT client...');
+      console.log('[MQTT] ✅ Client initialized successfully');
     } catch (error) {
-      console.error('[MQTT] ❌ Connection failed:', error);
-      this.isConnected = false;
-      return false;
+      console.error('[MQTT] ❌ Error initializing client:', error);
+      throw error;
     }
   }
 
   /**
-   * Subscribe to device data
+   * Connect to MQTT broker via WebSocket
    */
-  subscribe(deviceId: string, callback: DeviceDataCallback): () => void {
-    if (!this.client || !this.isConnected) {
-      console.warn('[MQTT] ⚠️ Not connected, cannot subscribe to device:', deviceId);
-      return () => {};
-    }
+  async connect(config: MQTTConfig): Promise<boolean> {
+    return new Promise((resolve) => {
+      console.log('[MQTT] 🔌 Starting connection to HiveMQ...');
+      console.log('[MQTT] URL:', config.url);
+      console.log('[MQTT] Username:', config.username);
 
-    try {
-      // Add listener
-      if (!this.listeners.has(deviceId)) {
-        this.listeners.set(deviceId, new Set());
-
-        // Subscribe to device topics using SHORT device ID (e.g., "26B7B3F8")
-        const dataTopic = `esp32/${deviceId}/data`;
-        const statusTopic = `esp32/${deviceId}/status`;
-        const ledStateTopic = `esp32/${deviceId}/led/state`;
-
-        console.log('[MQTT] 📡 Subscribing to topics for device:', deviceId);
-        console.log('[MQTT] 📡 Topics:', { dataTopic, statusTopic, ledStateTopic });
-        
-        this.client.subscribe(dataTopic, { qos: 1 }, (err: any) => {
-          if (err) {
-            console.error('[MQTT] ❌ Subscribe error for', dataTopic, ':', err);
-          } else {
-            console.log('[MQTT] ✅ Subscribed to:', dataTopic);
-          }
-        });
-
-        this.client.subscribe(statusTopic, { qos: 1 }, (err: any) => {
-          if (err) {
-            console.error('[MQTT] ❌ Subscribe error for', statusTopic, ':', err);
-          } else {
-            console.log('[MQTT] ✅ Subscribed to:', statusTopic);
-          }
-        });
-
-        this.client.subscribe(ledStateTopic, { qos: 1 }, (err: any) => {
-          if (err) {
-            console.error('[MQTT] ❌ Subscribe error for', ledStateTopic, ':', err);
-          } else {
-            console.log('[MQTT] ✅ Subscribed to:', ledStateTopic);
-          }
-        });
-      }
-
-      this.listeners.get(deviceId)!.add(callback);
-
-      // Return unsubscribe function
-      return () => {
-        this.listeners.get(deviceId)?.delete(callback);
-        if (this.listeners.get(deviceId)?.size === 0) {
-          this.listeners.delete(deviceId);
-          const dataTopic = `esp32/${deviceId}/data`;
-          const statusTopic = `esp32/${deviceId}/status`;
-          const ledStateTopic = `esp32/${deviceId}/led/state`;
-          
-          console.log('[MQTT] 🔕 Unsubscribing from topics for device:', deviceId);
-          this.client?.unsubscribe(dataTopic);
-          this.client?.unsubscribe(statusTopic);
-          this.client?.unsubscribe(ledStateTopic);
-        }
+      const mqttOptions = {
+        clientId: config.clientId,
+        username: config.username,
+        password: config.password,
+        clean: true,
+        reconnectPeriod: 1000,
+        connectTimeout: 30000,
       };
-    } catch (error) {
-      console.error('[MQTT] ❌ Subscribe error:', error);
-      return () => {};
-    }
+
+      try {
+        this.client = mqtt.connect(config.url, mqttOptions);
+
+        this.client.on('connect', () => {
+          console.log('[MQTT] ✅ Connected to HiveMQ successfully!');
+          console.log('[MQTT] URL:', config.url);
+          this.isConnected = true;
+          this.connectCallbacks.forEach(cb => cb());
+          resolve(true);
+        });
+
+        this.client.on('message', (topic: string, message: Buffer) => {
+          const payload = message.toString();
+          console.log(`[MQTT] 📨 Received message on ${topic}: ${payload}`);
+          this.handleMessage(topic, payload);
+          this.messageCallbacks.forEach(cb => cb(topic, payload));
+        });
+
+        this.client.on('error', (error: Error) => {
+          console.error('[MQTT] ❌ Connection error:', error.message);
+          this.isConnected = false;
+          this.errorCallbacks.forEach(cb => cb(error));
+        });
+
+        this.client.on('offline', () => {
+          console.log('[MQTT] 🔌 Connection lost (offline)');
+          this.isConnected = false;
+          this.disconnectCallbacks.forEach(cb => cb());
+        });
+
+        this.client.on('reconnect', () => {
+          console.log('[MQTT] 🔄 Reconnecting...');
+        });
+
+        // Set timeout for connection attempt
+        const timeoutId = setTimeout(() => {
+          if (!this.isConnected) {
+            console.error('[MQTT] ⏱️ Connection timeout after 30 seconds');
+            console.error('[MQTT] Possible causes:');
+            console.error('[MQTT]   - Network connectivity issue');
+            console.error('[MQTT]   - Firewall blocking WebSocket');
+            console.error('[MQTT]   - Invalid credentials (username/password)');
+            console.error('[MQTT]   - HiveMQ broker unreachable');
+            this.client?.end();
+            resolve(false);
+          }
+        }, 30000);
+
+        // Clear timeout if connected
+        const originalResolve = resolve;
+        resolve = ((value: boolean) => {
+          clearTimeout(timeoutId);
+          originalResolve(value);
+        }) as any;
+      } catch (error) {
+        console.error('[MQTT] ❌ Error during connection:', error);
+        resolve(false);
+      }
+    });
   }
 
   /**
    * Handle incoming MQTT messages
    */
-  private handleMessage(topic: string, message: Buffer): void {
+  private handleMessage(topic: string, message: string): void {
     try {
-      const payload = message.toString();
-      console.log('[MQTT] 📨 Received message on', topic, ':', payload);
-
       // Parse device ID from topic: esp32/{deviceId}/...
       const parts = topic.split('/');
       if (parts.length < 3) {
@@ -205,20 +131,20 @@ class MQTTService {
       if (topic.includes('/data')) {
         // Sensor data topic
         try {
-          data = JSON.parse(payload);
+          data = JSON.parse(message);
           console.log('[MQTT] 📊 Parsed sensor data:', data);
         } catch {
-          console.warn('[MQTT] ⚠️ Could not parse data JSON:', payload);
-          data = { raw: payload };
+          console.warn('[MQTT] ⚠️ Could not parse data JSON:', message);
+          data = { raw: message };
         }
       } else if (topic.includes('/status')) {
         // Status topic
-        data = { status: payload };
-        console.log('[MQTT] 🔄 Device status:', payload);
+        data = { status: message };
+        console.log('[MQTT] 🔄 Device status:', message);
       } else if (topic.includes('/led/state')) {
         // LED state topic
-        data = { ledState: payload };
-        console.log('[MQTT] 💡 LED state:', payload);
+        data = { ledState: message };
+        console.log('[MQTT] 💡 LED state:', message);
       }
 
       // Notify all listeners for this device
@@ -241,11 +167,69 @@ class MQTTService {
   }
 
   /**
+   * Subscribe to device data
+   */
+  subscribe(deviceId: string, callback: DeviceDataCallback): () => void {
+    if (!this.isConnectedToMQTT()) {
+      console.warn('[MQTT] ⚠️ Not connected, cannot subscribe to device:', deviceId);
+      return () => {};
+    }
+
+    try {
+      // Add listener
+      if (!this.listeners.has(deviceId)) {
+        this.listeners.set(deviceId, new Set());
+
+        // Subscribe to device topics using SHORT device ID (e.g., "26B7B3F8")
+        const dataTopic = `esp32/${deviceId}/data`;
+        const statusTopic = `esp32/${deviceId}/status`;
+        const ledStateTopic = `esp32/${deviceId}/led/state`;
+
+        console.log('[MQTT] 📡 Subscribing to topics for device:', deviceId);
+        console.log('[MQTT] 📡 Topics:', { dataTopic, statusTopic, ledStateTopic });
+
+        // Subscribe to all topics
+        if (this.client?.subscribe) {
+          this.client.subscribe([dataTopic, statusTopic, ledStateTopic], { qos: 1 }, (err) => {
+            if (err) {
+              console.error('[MQTT] ❌ Subscription error:', err);
+            } else {
+              console.log('[MQTT] ✅ Subscribed to:', dataTopic);
+              console.log('[MQTT] ✅ Subscribed to:', statusTopic);
+              console.log('[MQTT] ✅ Subscribed to:', ledStateTopic);
+            }
+          });
+        }
+      }
+
+      this.listeners.get(deviceId)!.add(callback);
+
+      // Return unsubscribe function
+      return () => {
+        this.listeners.get(deviceId)?.delete(callback);
+        if (this.listeners.get(deviceId)?.size === 0) {
+          this.listeners.delete(deviceId);
+          const dataTopic = `esp32/${deviceId}/data`;
+          const statusTopic = `esp32/${deviceId}/status`;
+          const ledStateTopic = `esp32/${deviceId}/led/state`;
+
+          console.log('[MQTT] 🔕 Unsubscribing from topics for device:', deviceId);
+          if (this.client?.unsubscribe) {
+            this.client.unsubscribe([dataTopic, statusTopic, ledStateTopic]);
+          }
+        }
+      };
+    } catch (error) {
+      console.error('[MQTT] ❌ Subscribe error:', error);
+      return () => {};
+    }
+  }
+
+  /**
    * Send LED control command
-   * Publishes to esp32/{deviceId}/led/set
    */
   async sendLEDCommand(deviceId: string, state: boolean): Promise<boolean> {
-    if (!this.client || !this.isConnected) {
+    if (!this.isConnectedToMQTT()) {
       console.warn('[MQTT] ⚠️ Not connected, cannot send LED command');
       return false;
     }
@@ -257,15 +241,20 @@ class MQTTService {
       console.log('[MQTT] 💡 Publishing LED command to:', topic, 'Message:', message);
 
       return new Promise((resolve) => {
-        this.client?.publish(topic, message, { qos: 1 }, (err: any) => {
-          if (err) {
-            console.error('[MQTT] ❌ Publish error:', err);
-            resolve(false);
-          } else {
-            console.log('[MQTT] ✅ Published to', topic, ':', message);
-            resolve(true);
-          }
-        });
+        if (this.client?.publish) {
+          this.client.publish(topic, message, { qos: 1 }, (err) => {
+            if (err) {
+              console.error('[MQTT] ❌ Publish error:', err);
+              resolve(false);
+            } else {
+              console.log('[MQTT] ✅ Published to', topic, ':', message);
+              resolve(true);
+            }
+          });
+        } else {
+          console.error('[MQTT] ❌ Client not ready');
+          resolve(false);
+        }
       });
     } catch (error) {
       console.error('[MQTT] ❌ Send LED command error:', error);
@@ -275,10 +264,9 @@ class MQTTService {
 
   /**
    * Send WiFi update command
-   * Publishes to esp32/{deviceId}/config
    */
   async sendWiFiUpdate(deviceId: string, ssid: string, password: string): Promise<boolean> {
-    if (!this.client || !this.isConnected) {
+    if (!this.isConnectedToMQTT()) {
       console.warn('[MQTT] ⚠️ Not connected, cannot send WiFi update');
       return false;
     }
@@ -294,15 +282,20 @@ class MQTTService {
       console.log('[MQTT] 📶 Publishing WiFi update to:', topic);
 
       return new Promise((resolve) => {
-        this.client?.publish(topic, payload, { qos: 1 }, (err: any) => {
-          if (err) {
-            console.error('[MQTT] ❌ Publish error:', err);
-            resolve(false);
-          } else {
-            console.log('[MQTT] ✅ Published to', topic, ':', payload);
-            resolve(true);
-          }
-        });
+        if (this.client?.publish) {
+          this.client.publish(topic, payload, { qos: 1 }, (err) => {
+            if (err) {
+              console.error('[MQTT] ❌ Publish error:', err);
+              resolve(false);
+            } else {
+              console.log('[MQTT] ✅ Published to', topic, ':', payload);
+              resolve(true);
+            }
+          });
+        } else {
+          console.error('[MQTT] ❌ Client not ready');
+          resolve(false);
+        }
       });
     } catch (error) {
       console.error('[MQTT] ❌ Send WiFi update error:', error);
@@ -312,10 +305,9 @@ class MQTTService {
 
   /**
    * Send factory reset command
-   * Publishes to esp32/{deviceId}/config
    */
   async sendFactoryReset(deviceId: string): Promise<boolean> {
-    if (!this.client || !this.isConnected) {
+    if (!this.isConnectedToMQTT()) {
       console.warn('[MQTT] ⚠️ Not connected, cannot send factory reset');
       return false;
     }
@@ -329,15 +321,20 @@ class MQTTService {
       console.log('[MQTT] 🔄 Publishing factory reset to:', topic);
 
       return new Promise((resolve) => {
-        this.client?.publish(topic, payload, { qos: 1 }, (err: any) => {
-          if (err) {
-            console.error('[MQTT] ❌ Publish error:', err);
-            resolve(false);
-          } else {
-            console.log('[MQTT] ✅ Published to', topic, ':', payload);
-            resolve(true);
-          }
-        });
+        if (this.client?.publish) {
+          this.client.publish(topic, payload, { qos: 1 }, (err) => {
+            if (err) {
+              console.error('[MQTT] ❌ Publish error:', err);
+              resolve(false);
+            } else {
+              console.log('[MQTT] ✅ Published to', topic, ':', payload);
+              resolve(true);
+            }
+          });
+        } else {
+          console.error('[MQTT] ❌ Client not ready');
+          resolve(false);
+        }
       });
     } catch (error) {
       console.error('[MQTT] ❌ Send factory reset error:', error);
@@ -349,25 +346,21 @@ class MQTTService {
    * Check if connected to MQTT
    */
   isConnectedToMQTT(): boolean {
-    return this.isConnected;
+    return this.isConnected && this.client?.connected === true;
   }
 
   /**
    * Disconnect from MQTT
    */
   disconnect(): void {
+    console.log('[MQTT] 🔌 Disconnecting from broker...');
     if (this.client) {
-      try {
-        console.log('[MQTT] 🔌 Disconnecting from broker...');
-        this.client.end();
-        this.client = null;
-        this.isConnected = false;
-        this.listeners.clear();
-        console.log('[MQTT] ✅ Disconnected');
-      } catch (error) {
-        console.error('[MQTT] ❌ Disconnect error:', error);
-      }
+      this.client.end();
+      this.client = null;
     }
+    this.isConnected = false;
+    this.listeners.clear();
+    console.log('[MQTT] ✅ Disconnected');
   }
 
   /**
@@ -376,16 +369,35 @@ class MQTTService {
   destroy(): void {
     this.disconnect();
   }
+
+  /**
+   * Set callbacks
+   */
+  setOnConnectCallback(callback: () => void) {
+    this.connectCallbacks.push(callback);
+  }
+
+  setOnMessageCallback(callback: (topic: string, payload: string) => void) {
+    this.messageCallbacks.push(callback);
+  }
+
+  setOnErrorCallback(callback: (error: Error) => void) {
+    this.errorCallbacks.push(callback);
+  }
+
+  setOnDisconnectCallback(callback: () => void) {
+    this.disconnectCallbacks.push(callback);
+  }
 }
 
 // Singleton instance
-let mqttServiceInstance: MQTTService | null = null;
+let mqttServiceInstance: MqttService | null = null;
 
-export const getMQTTService = (): MQTTService => {
+export const getMQTTService = (): MqttService => {
   if (!mqttServiceInstance) {
-    mqttServiceInstance = new MQTTService();
+    mqttServiceInstance = new MqttService();
   }
   return mqttServiceInstance;
 };
 
-export default MQTTService;
+export default MqttService;

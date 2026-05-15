@@ -5,6 +5,7 @@ export interface ProvisionedDevice {
   id: string;
   name: string;
   macAddress: string;
+  mqttDeviceId?: string; // ✅ MQTT device ID for topic usage
   ssid: string;
   status: 'connecting' | 'online' | 'offline';
   lastSeen: string;

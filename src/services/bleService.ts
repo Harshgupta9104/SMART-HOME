@@ -267,13 +267,14 @@ class BleService {
 
   /**
    * Send WiFi credentials to ESP32 device
+   * Returns the MQTT device ID read from the ESP32
    */
   async sendWiFiCredentials(
     deviceId: string,
     ssid: string,
     password: string,
-    onStatusUpdate: (status: string, isError?: boolean) => void
-  ): Promise<void> {
+    onStatusUpdate: (status: string, isError?: boolean, mqttDeviceId?: string) => void
+  ): Promise<string | null> {
     try {
       if (!this.bleManager) {
         throw new Error('BleManager not initialized');
@@ -281,14 +282,15 @@ class BleService {
 
       console.log('[BLE] Starting WiFi provisioning for device:', deviceId);
 
-      // Connect to device
+      // Step 1: Connect to device
       onStatusUpdate('Connecting to device...');
       const device = await this.connectToDevice(deviceId);
       if (!device) {
         throw new Error('Failed to connect to device');
       }
+      console.log('[BLE] ✅ Connected to device');
 
-      // Discover services
+      // Step 2: Discover services
       onStatusUpdate('Discovering services...');
       const services = await device.services();
       console.log('[BLE] Found services:', services.length);
@@ -315,6 +317,62 @@ class BleService {
 
       console.log('[BLE] Found provisioning characteristic');
 
+      // ✨ NEW: Read Device ID from ESP32 BEFORE sending credentials
+      console.log('[BLE] Reading device ID from ESP32...');
+      onStatusUpdate('Reading device ID...');
+      
+      let mqttDeviceId: string | null = null;
+      
+      try {
+        // Get all characteristics from the device ID service
+        const devIdService = services.find(
+          s => s.uuid.toLowerCase() === DEVID_SERVICE_UUID.toLowerCase()
+        );
+
+        if (devIdService) {
+          const devIdCharacteristics = await devIdService.characteristics();
+          const devIdChar = devIdCharacteristics.find(
+            c => c.uuid.toLowerCase() === DEVID_CHAR_UUID.toLowerCase()
+          );
+
+          if (devIdChar) {
+            // Read the characteristic value
+            const readChar = await devIdChar.read();
+            
+            if (readChar && readChar.value) {
+              const fullDeviceId = Buffer.from(readChar.value, 'base64').toString('utf-8');
+              let shortId = fullDeviceId;
+
+              if (fullDeviceId.startsWith('ESP32_')) {
+                shortId = fullDeviceId.replace('ESP32_', '');
+              }
+              if (fullDeviceId.startsWith('PROV_')) {
+                shortId = fullDeviceId.replace('PROV_', '');
+              }
+
+              mqttDeviceId = shortId; // ✅ SAVE THE MQTT DEVICE ID
+
+              console.log('[BLE] ✅ Device ID read:', shortId);
+              console.log('[BLE] 📊 Device ID mapping:');
+              console.log('[BLE]   BLE MAC:', deviceId);
+              console.log('[BLE]   Full ID:', fullDeviceId);
+              console.log('[BLE]   MQTT ID:', shortId);
+              
+              onStatusUpdate(`Device ID: ${shortId}`, false, shortId);
+            } else {
+              console.warn('[BLE] ⚠️ Could not read device ID characteristic value, continuing...');
+            }
+          } else {
+            console.warn('[BLE] ⚠️ Device ID characteristic not found, continuing...');
+          }
+        } else {
+          console.warn('[BLE] ⚠️ Device ID service not found, continuing...');
+        }
+      } catch (idReadError) {
+        console.warn('[BLE] ⚠️ Error reading device ID:', idReadError);
+        console.log('[BLE] Continuing with provisioning...');
+      }
+
       // Create a promise that resolves when we get acknowledgment from ESP32
       let ackResolve: (() => void) | null = null;
       let ackReject: ((error: Error) => void) | null = null;
@@ -331,7 +389,7 @@ class BleService {
       }, 10000); // 10 second timeout
 
       // Register notification listener BEFORE writing data
-      onStatusUpdate('Setting up notifications...');
+      onStatusUpdate('Setting up notifications...', false, mqttDeviceId || undefined);
       this.notificationBuffer = ''; // Reset buffer
 
       this.notificationSubscription = provisioningChar.monitor(
@@ -363,12 +421,12 @@ class BleService {
                 const response = JSON.parse(this.notificationBuffer);
                 console.log('[BLE] Parsed firmware response:', response);
 
-                // Route status to callback
+                // Route status to callback - ALWAYS pass mqttDeviceId
                 if (response.status) {
-                  onStatusUpdate(response.status);
+                  onStatusUpdate(response.status, false, mqttDeviceId || undefined);
                 } else if (response.msg) {
                   // Handle error messages from firmware
-                  onStatusUpdate(response.msg, true);
+                  onStatusUpdate(response.msg, true, mqttDeviceId || undefined);
                 }
 
                 // Check if this is an acknowledgment (device received and processing)
@@ -435,6 +493,9 @@ class BleService {
       console.log('[BLE] ⏳ Waiting for acknowledgment from device...');
       await ackPromise;
       console.log('[BLE] ✅ Acknowledgment received - device is provisioning');
+      
+      // Return the MQTT device ID
+      return mqttDeviceId;
     } catch (error) {
       console.error('[BLE] Error sending WiFi credentials:', error);
       throw error;
@@ -494,101 +555,7 @@ class BleService {
     }
   }
 
-  /**
-   * Read device ID from ESP32 via BLE
-   * Returns the short MQTT device ID (e.g., "26B7B3F8")
-   * 
-   * Flow:
-   * 1. Connect to device
-   * 2. Discover all services and characteristics (CRITICAL!)
-   * 3. Read Device ID characteristic
-   * 4. Decode base64 value
-   * 5. Extract short ID from "ESP32_26B7B3F8" → "26B7B3F8"
-   */
-  async readDeviceId(deviceId: string): Promise<string | null> {
-    try {
-      console.log('[BLE] 📖 Reading device ID from:', deviceId);
 
-      if (!this.bleManager) {
-        console.error('[BLE] BleManager not initialized');
-        return null;
-      }
-
-      // STEP 1: Connect to device
-      console.log('[BLE] Step 1: Connecting to device...');
-      const device = await this.bleManager.connectToDevice(deviceId);
-      console.log('[BLE] ✅ Connected to device');
-
-      // STEP 2: Discover all services and characteristics (CRITICAL!)
-      console.log('[BLE] Step 2: Discovering services and characteristics...');
-      await this.bleManager.discoverAllServicesAndCharacteristics(deviceId);
-      console.log('[BLE] ✅ Services discovered');
-
-      // STEP 3: Read Device ID characteristic
-      console.log('[BLE] Step 3: Reading Device ID characteristic...');
-      console.log('[BLE] Using UUIDs:');
-      console.log('[BLE]   Service:', DEVID_SERVICE_UUID);
-      console.log('[BLE]   Characteristic:', DEVID_CHAR_UUID);
-
-      const characteristic = await this.bleManager.readCharacteristicForService(
-        deviceId,
-        DEVID_SERVICE_UUID,
-        DEVID_CHAR_UUID
-      );
-
-      if (!characteristic || !characteristic.value) {
-        console.error('[BLE] ❌ No characteristic value received');
-        await this.bleManager.cancelDeviceConnection(deviceId);
-        return null;
-      }
-
-      // STEP 4: Decode base64 value
-      console.log('[BLE] Step 4: Decoding base64 value...');
-      console.log('[BLE] Raw base64:', characteristic.value);
-
-      const fullDeviceId = Buffer.from(characteristic.value, 'base64').toString('utf-8');
-      console.log('[BLE] ✅ Decoded full device ID:', fullDeviceId);
-
-      // STEP 5: Extract short ID from "ESP32_26B7B3F8" → "26B7B3F8"
-      console.log('[BLE] Step 5: Extracting short MQTT device ID...');
-      let shortId = fullDeviceId;
-
-      // Remove "ESP32_" prefix if present
-      if (fullDeviceId.startsWith('ESP32_')) {
-        shortId = fullDeviceId.replace('ESP32_', '');
-      }
-      // Remove "PROV_" prefix if present
-      if (fullDeviceId.startsWith('PROV_')) {
-        shortId = fullDeviceId.replace('PROV_', '');
-      }
-
-      console.log('[BLE] ✅ Short MQTT device ID:', shortId);
-      console.log('[BLE] 📊 Device ID mapping:');
-      console.log('[BLE]   BLE MAC:', deviceId);
-      console.log('[BLE]   Full ID:', fullDeviceId);
-      console.log('[BLE]   MQTT ID:', shortId);
-
-      // Disconnect after reading
-      console.log('[BLE] Step 6: Disconnecting...');
-      await this.bleManager.cancelDeviceConnection(deviceId);
-      console.log('[BLE] ✅ Disconnected');
-
-      return shortId;
-    } catch (error) {
-      console.error('[BLE] ❌ Error reading device ID:', error);
-      console.error('[BLE] Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : 'No stack trace',
-      });
-
-      try {
-        await this.bleManager?.cancelDeviceConnection(deviceId);
-      } catch (e) {
-        // Ignore disconnect errors
-      }
-      return null;
-    }
-  }
 }
 
 // Singleton instance
