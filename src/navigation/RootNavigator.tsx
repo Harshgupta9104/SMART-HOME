@@ -75,7 +75,7 @@ const RootNavigator = () => {
             headerShown: false,
           }}
         >
-          <Stack.Screen name="HomeMain" component={HomeScreen} />
+        <Stack.Screen name="HomeMain" component={HomeScreen} />
           <Stack.Screen
             name="DeviceDetails"
             component={DeviceDetailsScreen}
