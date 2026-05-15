@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  Switch,
+  TouchableOpacity,
   Animated,
   ScrollView,
 } from 'react-native';
@@ -19,12 +19,14 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
   const [isUpdatingLED, setIsUpdatingLED] = useState(false);
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null);
 
-  // Glow animation for when LED is ON
-  const glowAnim = useRef(new Animated.Value(0)).current;
+  // Animations
+  const glowAnim = useRef(new Animated.Value(0)).current;       // pulsing glow radius
+  const scaleAnim = useRef(new Animated.Value(1)).current;      // press scale
   const glowLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   const deviceDataService = getDeviceDataService();
 
+  // Subscribe to real MQTT state — UI always reflects device truth
   useEffect(() => {
     if (!device) return;
     const mqttDeviceId = device.mqttDeviceId || device.id;
@@ -35,45 +37,65 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
     return () => unsubscribe();
   }, [device]);
 
-  // Start/stop glow based on LED state
+  // Pulsing glow when ON
   useEffect(() => {
     if (ledStatus) {
       glowLoop.current = Animated.loop(
         Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0.4, duration: 1200, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 1, duration: 1400, useNativeDriver: false }),
+          Animated.timing(glowAnim, { toValue: 0.5, duration: 1400, useNativeDriver: false }),
         ])
       );
       glowLoop.current.start();
     } else {
       glowLoop.current?.stop();
-      Animated.timing(glowAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+      Animated.timing(glowAnim, { toValue: 0, duration: 400, useNativeDriver: false }).start();
     }
   }, [ledStatus]);
 
-  const handleLEDToggle = async (value: boolean) => {
+  const handleBulbPress = async () => {
     if (isUpdatingLED) return;
+
+    // Press scale animation
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.93, duration: 100, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+
     setIsUpdatingLED(true);
-    // Optimistic update
-    setLedStatus(value);
+
     try {
       const mqttDeviceId = device.mqttDeviceId || device.id;
-      const success = await deviceDataService.updateLEDStatus(mqttDeviceId, value);
+      const newState = !ledStatus;
+      
+      console.log('[Controller] Sending LED command:', newState ? 'ON' : 'OFF');
+      
+      // Send command and wait for MQTT response
+      const success = await deviceDataService.updateLEDStatus(mqttDeviceId, newState);
+      
       if (!success) {
-        // Revert on failure
-        setLedStatus(!value);
+        console.warn('[Controller] LED command failed');
       }
+      // UI will update automatically via MQTT subscription when ESP responds
     } catch (error) {
       console.error('[Controller] Error updating LED:', error);
-      setLedStatus(!value);
     } finally {
       setIsUpdatingLED(false);
     }
   };
 
+  // Interpolated glow values (not useNativeDriver — shadow props)
+  const glowRadius = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 40],
+  });
   const glowOpacity = glowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 0.25],
+    outputRange: [0, 0.85],
+  });
+  const ringOpacity = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
   });
 
   return (
@@ -82,50 +104,65 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Grow Light Control Card */}
+      {/* Grow Light Card */}
       <View style={styles.controlCard}>
-        {/* Glow overlay when ON */}
+
+        {/* Card background glow when ON */}
         <Animated.View
           style={[
-            styles.glowOverlay,
-            { opacity: glowOpacity, backgroundColor: '#FCD34D' },
+            styles.cardGlow,
+            {
+              opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.18] }),
+              backgroundColor: '#FCD34D',
+            },
           ]}
           pointerEvents="none"
         />
 
-        {/* Icon + Label */}
-        <View style={styles.controlTop}>
-          <Text style={[styles.controlIcon, ledStatus && styles.controlIconOn]}>
-            {ledStatus ? '💡' : '🌙'}
-          </Text>
-          <Text style={styles.controlName}>Grow Light</Text>
-          <Text style={[styles.controlStatus, { color: ledStatus ? '#10B981' : '#9CA3AF' }]}>
-            {isUpdatingLED ? 'Updating...' : ledStatus ? 'ON' : 'OFF'}
-          </Text>
-        </View>
+        {/* Label */}
+        <Text style={styles.controlName}>Grow Light</Text>
 
-        {/* Big Switch */}
-        <View style={styles.switchRow}>
-          <Text style={styles.switchOffLabel}>Off</Text>
-          <Switch
-            value={ledStatus}
-            onValueChange={handleLEDToggle}
+        {/* Tappable Bulb */}
+        <Animated.View style={{ transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={handleBulbPress}
+            activeOpacity={0.85}
             disabled={isUpdatingLED}
-            trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
-            thumbColor={ledStatus ? '#10B981' : '#D1D5DB'}
-            ios_backgroundColor="#E5E7EB"
-            style={styles.bigSwitch}
-          />
-          <Text style={styles.switchOnLabel}>On</Text>
-        </View>
+            style={styles.bulbTouchable}
+          >
+            {/* Outer glow ring */}
+            <Animated.View
+              style={[
+                styles.glowRing,
+                {
+                  opacity: ringOpacity,
+                  shadowRadius: glowRadius,
+                  shadowOpacity: glowOpacity,
+                  shadowColor: '#FFD54F',
+                  borderColor: ledStatus ? '#FFD54F' : 'transparent',
+                },
+              ]}
+            />
 
-        {/* Status indicator dot */}
-        <View style={styles.dotRow}>
+            {/* Bulb circle */}
+            <View style={[styles.bulbCircle, ledStatus && styles.bulbCircleOn]}>
+              <Text style={[styles.bulbIcon, ledStatus && styles.bulbIconOn]}>
+                {isUpdatingLED ? '⏳' : '💡'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Status text */}
+        <View style={styles.statusRow}>
           <View style={[styles.statusDot, ledStatus ? styles.statusDotOn : styles.statusDotOff]} />
-          <Text style={[styles.dotLabel, { color: ledStatus ? '#10B981' : '#9CA3AF' }]}>
-            {ledStatus ? 'Light is active' : 'Light is off'}
+          <Text style={[styles.statusLabel, { color: ledStatus ? '#10B981' : '#9CA3AF' }]}>
+            {isUpdatingLED ? 'Updating...' : ledStatus ? 'ON  —  Light is active' : 'OFF  —  Light is off'}
           </Text>
         </View>
+
+        {/* Tap hint */}
+        <Text style={styles.tapHint}>Tap the bulb to toggle</Text>
       </View>
 
       {/* Quick Stats */}
@@ -170,8 +207,9 @@ const styles = StyleSheet.create({
   // Control Card
   controlCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 32,
+    borderRadius: 28,
+    paddingVertical: 36,
+    paddingHorizontal: 24,
     marginBottom: 16,
     alignItems: 'center',
     shadowColor: '#000',
@@ -182,90 +220,94 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  glowOverlay: {
+  cardGlow: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 24,
+    top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 28,
   },
 
-  // Top section
-  controlTop: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  controlIcon: {
-    fontSize: 64,
-    marginBottom: 12,
-    opacity: 0.5,
-  },
-  controlIconOn: {
-    opacity: 1,
-  },
   controlName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 6,
-  },
-  controlStatus: {
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    marginBottom: 32,
+    letterSpacing: 0.3,
   },
 
-  // Switch
-  switchRow: {
-    flexDirection: 'row',
+  // Bulb
+  bulbTouchable: {
     alignItems: 'center',
-    gap: 16,
-    marginBottom: 24,
+    justifyContent: 'center',
+    marginBottom: 28,
   },
-  switchOffLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#9CA3AF',
-    width: 28,
-    textAlign: 'right',
+  glowRing: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 2,
+    shadowOffset: { width: 0, height: 0 },
   },
-  switchOnLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#10B981',
-    width: 28,
+  bulbCircle: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#E5E7EB',
   },
-  bigSwitch: {
-    transform: [{ scaleX: 1.6 }, { scaleY: 1.6 }],
+  bulbCircleOn: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FCD34D',
+    shadowColor: '#FFD54F',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  bulbIcon: {
+    fontSize: 72,
+    opacity: 0.35,
+  },
+  bulbIconOn: {
+    opacity: 1,
   },
 
-  // Status dot
-  dotRow: {
+  // Status
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 10,
   },
   statusDot: {
-    width: 10,
-    height: 10,
+    width: 9,
+    height: 9,
     borderRadius: 5,
   },
   statusDotOn: {
     backgroundColor: '#10B981',
     shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
+    shadowOpacity: 0.9,
     shadowRadius: 6,
     elevation: 4,
   },
   statusDotOff: {
     backgroundColor: '#D1D5DB',
   },
-  dotLabel: {
+  statusLabel: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  tapHint: {
+    fontSize: 11,
+    color: '#D1D5DB',
+    marginTop: 4,
+    letterSpacing: 0.5,
   },
 
   // Stats Card
@@ -280,7 +322,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   statsTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#1F2937',
     marginBottom: 12,

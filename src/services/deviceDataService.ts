@@ -143,10 +143,14 @@ class DeviceDataService {
   /**
    * Update LED status for a device
    * Sends command via MQTT
+   * 
+   * NOTE: Does NOT update cache optimistically.
+   * The UI will update when the ESP32 responds via MQTT with the actual state.
+   * This ensures the UI always reflects the true device state.
    */
   async updateLEDStatus(deviceId: string, status: boolean): Promise<boolean> {
     try {
-      console.log('[DeviceData] 💡 Updating LED for device:', deviceId, 'Status:', status ? 'ON' : 'OFF');
+      console.log('[DeviceData] 💡 Sending LED command for device:', deviceId, 'Status:', status ? 'ON' : 'OFF');
 
       const mqttService = getMQTTService();
 
@@ -156,16 +160,14 @@ class DeviceDataService {
       }
 
       // Send LED command via MQTT
+      // The ESP32 will respond with the actual state via esp32/{id}/led/state topic
+      // which will trigger the MQTT subscription and update the UI
       const success = await mqttService.sendLEDCommand(deviceId, status);
 
       if (success) {
-        // Update cache optimistically
-        const metrics = this.metricsCache.get(deviceId);
-        if (metrics) {
-          metrics.ledStatus = status;
-          metrics.lastUpdate = Date.now();
-          this.notifyListeners(deviceId, metrics);
-        }
+        console.log('[DeviceData] ✅ LED command sent, waiting for ESP32 response...');
+      } else {
+        console.warn('[DeviceData] ❌ LED command failed to send');
       }
 
       return success;

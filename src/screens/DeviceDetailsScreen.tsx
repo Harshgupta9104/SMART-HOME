@@ -75,11 +75,10 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
           </View>
         </View>
 
-        {/* MQTT badge */}
-        <View style={[styles.mqttBadge, mqttConnected ? styles.mqttOn : styles.mqttOff]}>
-          <View style={[styles.mqttDot, mqttConnected ? styles.mqttDotOn : styles.mqttDotOff]} />
-          <Text style={styles.mqttText}>{mqttConnected ? 'MQTT' : 'Offline'}</Text>
-        </View>
+        {/* Notification Bell Icon */}
+        <TouchableOpacity style={styles.notificationBtn}>
+          <Text style={styles.notificationIcon}>🔔</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
@@ -170,6 +169,17 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     lineHeight: 28,
   },
+  notificationBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationIcon: {
+    fontSize: 20,
+  },
   headerInfo: {
     flex: 1,
   },
@@ -193,41 +203,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'capitalize',
-  },
-
-  // MQTT Badge
-  mqttBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 5,
-    borderWidth: 1,
-  },
-  mqttOn: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderColor: '#10B981',
-  },
-  mqttOff: {
-    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-    borderColor: '#EF4444',
-  },
-  mqttDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  mqttDotOn: {
-    backgroundColor: '#10B981',
-  },
-  mqttDotOff: {
-    backgroundColor: '#EF4444',
-  },
-  mqttText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1F2937',
   },
 });
 

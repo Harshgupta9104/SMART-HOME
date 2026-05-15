@@ -1,97 +1,78 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# SmartHomeApp
 
-# Getting Started
+React Native app for provisioning and managing ESP32-based smart home devices over BLE and MQTT.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Tech Stack
 
-## Step 1: Start Metro
+- React Native 0.84 (TypeScript)
+- `react-native-ble-plx` — BLE scanning & provisioning
+- `mqtt` (WebSocket) — real-time device data via HiveMQ cloud
+- `react-native-wifi-reborn` — WiFi network scanning
+- `@react-navigation/native` + `@react-navigation/material-top-tabs` — navigation
+- `@react-native-async-storage/async-storage` — onboarding state
+- `react-native-keychain` — saved WiFi passwords
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Project Structure
 
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+```
+src/
+  screens/
+    StartupScreen.tsx          # Splash + permission onboarding
+    HomeScreen.tsx             # Device list dashboard
+    SimpleBleProvisionScreen.tsx  # BLE scan & connect
+    WiFiProvisioningScreen.tsx    # WiFi network selection
+    ProvisioningProgressScreen.tsx # BLE provisioning progress
+    ProvisioningSuccessScreen.tsx  # Success confirmation
+    DeviceDetailsScreen.tsx    # Tab container (Metrics/Controller/Settings)
+    MetricsScreen.tsx          # Plant health + sensor data
+    ControllerScreen.tsx       # LED grow light control
+    SettingsScreen.tsx         # Preferences + WiFi reconfig + danger zone
+  services/
+    mqttService.ts             # HiveMQ WebSocket connection
+    deviceDataService.ts       # MQTT metrics cache + listeners
+    bleService.ts              # BLE scan & GATT operations
+    wifiService.ts             # WiFi network scanning
+    storageService.ts          # AsyncStorage device persistence
+    keychainService.ts         # Secure WiFi password storage
+    permissionService.ts       # Android permission management
+    locationService.ts         # Location services check
+    wifiErrors.ts              # Structured WiFi error types
+  context/
+    BleContext.tsx             # BLE state provider
+  hooks/
+    useProvisioning.ts         # BLE provisioning state machine
+  constants/
+    provisioningStates.ts      # Provisioning state enum
+  navigation/
+    RootNavigator.tsx          # Stack navigator + onboarding gate
 ```
 
-## Step 2: Build and run your app
+## Running
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+```bash
+# Start Metro bundler
+npx react-native start
 
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+# Build and install on Android
+npx react-native run-android
 ```
 
-### iOS
+## Device Flow
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+1. First launch → StartupScreen requests BT + location permissions
+2. Home → tap "Add Device" → BLE scan → connect to ESP32
+3. WiFi provisioning → select network → enter password → send via BLE
+4. Device saved → appears on Home dashboard
+5. Tap device → Metrics / Controller / Settings tabs
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+## MQTT Topics
 
-```sh
-bundle install
-```
+All topics use the short device ID (e.g. `26B7B3F8`):
 
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+| Topic | Direction | Purpose |
+|---|---|---|
+| `esp32/{id}/data` | ESP → App | Sensor data (soil, temp, humidity, RSSI, uptime, heap) |
+| `esp32/{id}/status` | ESP → App | online/offline |
+| `esp32/{id}/led/state` | ESP → App | LED state |
+| `esp32/{id}/led/set` | App → ESP | LED command (ON/OFF) |
+| `esp32/{id}/config` | App → ESP | WiFi update / factory reset |

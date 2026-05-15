@@ -129,7 +129,7 @@ class MqttService {
 
       // Parse message based on topic type
       if (topic.includes('/data')) {
-        // Sensor data topic
+        // Sensor data topic - contains all metrics including LED state
         try {
           data = JSON.parse(message);
           console.log('[MQTT] 📊 Parsed sensor data:', data);
@@ -142,9 +142,10 @@ class MqttService {
         data = { status: message };
         console.log('[MQTT] 🔄 Device status:', message);
       } else if (topic.includes('/led/state')) {
-        // LED state topic
-        data = { ledState: message };
-        console.log('[MQTT] 💡 LED state:', message);
+        // LED state topic - convert to 'led' field for consistency with data topic
+        // Message is typically "ON" or "OFF"
+        data = { led: message };
+        console.log('[MQTT] 💡 LED state received:', message);
       }
 
       // Notify all listeners for this device
