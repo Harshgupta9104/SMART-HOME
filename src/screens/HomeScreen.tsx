@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -27,9 +28,29 @@ const HomeScreen = ({ navigation }: any) => {
   const [newDeviceName, setNewDeviceName] = useState('');
   const [longPressDevice, setLongPressDevice] = useState<string | null>(null);
 
+  // Entry animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
   const storageService = getStorageService();
   const deviceDataService = getDeviceDataService();
   const unsubscribersRef = useRef<Map<string, () => void>>(new Map());
+
+  // Entry animation on mount
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   // Load devices on screen focus
   useFocusEffect(
@@ -221,7 +242,16 @@ const HomeScreen = ({ navigation }: any) => {
   }, []);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
       <StatusBar barStyle="dark-content" backgroundColor="#F6F7FB" />
 
       {/* Header */}
@@ -425,7 +455,7 @@ const HomeScreen = ({ navigation }: any) => {
           </View>
         </TouchableOpacity>
       </Modal>
-    </View>
+    </Animated.View>
   );
 };
 

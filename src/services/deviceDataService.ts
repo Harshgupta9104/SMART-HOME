@@ -10,6 +10,7 @@ export interface DeviceMetrics {
   soilMoisture?: number; // 0-100 %
   wifiRSSI?: number; // dBm
   ledStatus?: boolean; // ON/OFF
+  relayStatus?: boolean; // ON/OFF (GPIO23)
   uptime?: number; // seconds
   freeHeap?: number; // bytes
   temperature?: number; // °C
@@ -105,6 +106,7 @@ class DeviceDataService {
         soilMoisture: data.soil_pct ?? data.soilMoisture ?? data.soil_moisture,
         wifiRSSI: data.rssi ?? data.wifiRSSI ?? data.wifi_rssi,
         ledStatus: data.led === 'ON' || data.led === true || data.ledStatus === true,
+        relayStatus: data.relay === 'ON' || data.relay === true || data.relayStatus === true,
         uptime: data.uptime,
         freeHeap: data.free_heap ?? data.freeHeap,
         temperature: data.temperature ?? data.temp,
@@ -137,6 +139,43 @@ class DeviceDataService {
           console.error('[DeviceData] Error in listener:', error);
         }
       });
+    }
+  }
+
+  /**
+   * Update relay status for a device (GPIO23)
+   * Sends command via MQTT
+   * 
+   * NOTE: Does NOT update cache optimistically.
+   * The UI will update when the ESP32 responds via MQTT with the actual state.
+   * This ensures the UI always reflects the true device state.
+   */
+  async updateRelayStatus(deviceId: string, status: boolean): Promise<boolean> {
+    try {
+      console.log('[DeviceData] 🔌 Sending relay command for device:', deviceId, 'Status:', status ? 'ON' : 'OFF');
+
+      const mqttService = getMQTTService();
+
+      if (!mqttService.isConnectedToMQTT()) {
+        console.warn('[DeviceData] MQTT not connected');
+        return false;
+      }
+
+      // Send relay command via MQTT
+      // The ESP32 will respond with the actual state via esp32/{id}/relay/state topic
+      // which will trigger the MQTT subscription and update the UI
+      const success = await mqttService.sendRelayCommand(deviceId, status);
+
+      if (success) {
+        console.log('[DeviceData] ✅ Relay command sent, waiting for ESP32 response...');
+      } else {
+        console.warn('[DeviceData] ❌ Relay command failed to send');
+      }
+
+      return success;
+    } catch (error) {
+      console.error('[DeviceData] Error updating relay status:', error);
+      return false;
     }
   }
 

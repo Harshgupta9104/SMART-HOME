@@ -15,8 +15,8 @@ interface ControllerScreenProps {
 }
 
 const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
-  const [ledStatus, setLedStatus] = useState(false);
-  const [isUpdatingLED, setIsUpdatingLED] = useState(false);
+  const [relayStatus, setRelayStatus] = useState(false);
+  const [isUpdatingRelay, setIsUpdatingRelay] = useState(false);
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null);
 
   // Animations
@@ -32,14 +32,14 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
     const mqttDeviceId = device.mqttDeviceId || device.id;
     const unsubscribe = deviceDataService.subscribe(mqttDeviceId, (newMetrics: DeviceMetrics) => {
       setMetrics(newMetrics);
-      setLedStatus(newMetrics.ledStatus || false);
+      setRelayStatus(newMetrics.relayStatus || false);
     });
     return () => unsubscribe();
   }, [device]);
 
-  // Pulsing glow when ON
+  // Pulsing glow when relay is ON
   useEffect(() => {
-    if (ledStatus) {
+    if (relayStatus) {
       glowLoop.current = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, { toValue: 1, duration: 1400, useNativeDriver: false }),
@@ -51,10 +51,10 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       glowLoop.current?.stop();
       Animated.timing(glowAnim, { toValue: 0, duration: 400, useNativeDriver: false }).start();
     }
-  }, [ledStatus]);
+  }, [relayStatus]);
 
-  const handleBulbPress = async () => {
-    if (isUpdatingLED) return;
+  const handleRelayPress = async () => {
+    if (isUpdatingRelay) return;
 
     // Press scale animation
     Animated.sequence([
@@ -62,25 +62,25 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       Animated.timing(scaleAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
     ]).start();
 
-    setIsUpdatingLED(true);
+    setIsUpdatingRelay(true);
 
     try {
       const mqttDeviceId = device.mqttDeviceId || device.id;
-      const newState = !ledStatus;
+      const newState = !relayStatus;
       
-      console.log('[Controller] Sending LED command:', newState ? 'ON' : 'OFF');
+      console.log('[Controller] Sending relay command:', newState ? 'ON' : 'OFF');
       
       // Send command and wait for MQTT response
-      const success = await deviceDataService.updateLEDStatus(mqttDeviceId, newState);
+      const success = await deviceDataService.updateRelayStatus(mqttDeviceId, newState);
       
       if (!success) {
-        console.warn('[Controller] LED command failed');
+        console.warn('[Controller] Relay command failed');
       }
       // UI will update automatically via MQTT subscription when ESP responds
     } catch (error) {
-      console.error('[Controller] Error updating LED:', error);
+      console.error('[Controller] Error updating relay:', error);
     } finally {
-      setIsUpdatingLED(false);
+      setIsUpdatingRelay(false);
     }
   };
 
@@ -104,7 +104,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Grow Light Card */}
+      {/* Relay Control Card */}
       <View style={styles.controlCard}>
 
         {/* Card background glow when ON */}
@@ -113,22 +113,22 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
             styles.cardGlow,
             {
               opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.18] }),
-              backgroundColor: '#FCD34D',
+              backgroundColor: '#DC2626',
             },
           ]}
           pointerEvents="none"
         />
 
         {/* Label */}
-        <Text style={styles.controlName}>Grow Light</Text>
+        <Text style={styles.controlName}>Relay Control (GPIO23)</Text>
 
-        {/* Tappable Bulb */}
+        {/* Tappable Relay Button */}
         <Animated.View style={{ transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
           <TouchableOpacity
-            onPress={handleBulbPress}
+            onPress={handleRelayPress}
             activeOpacity={0.85}
-            disabled={isUpdatingLED}
-            style={styles.bulbTouchable}
+            disabled={isUpdatingRelay}
+            style={styles.relayTouchable}
           >
             {/* Outer glow ring */}
             <Animated.View
@@ -138,16 +138,16 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
                   opacity: ringOpacity,
                   shadowRadius: glowRadius,
                   shadowOpacity: glowOpacity,
-                  shadowColor: '#FFD54F',
-                  borderColor: ledStatus ? '#FFD54F' : 'transparent',
+                  shadowColor: '#EF4444',
+                  borderColor: relayStatus ? '#EF4444' : 'transparent',
                 },
               ]}
             />
 
-            {/* Bulb circle */}
-            <View style={[styles.bulbCircle, ledStatus && styles.bulbCircleOn]}>
-              <Text style={[styles.bulbIcon, ledStatus && styles.bulbIconOn]}>
-                {isUpdatingLED ? '⏳' : '💡'}
+            {/* Relay circle */}
+            <View style={[styles.relayCircle, relayStatus && styles.relayCircleOn]}>
+              <Text style={[styles.relayIcon, relayStatus && styles.relayIconOn]}>
+                {isUpdatingRelay ? '⏳' : '🔌'}
               </Text>
             </View>
           </TouchableOpacity>
@@ -155,14 +155,14 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
 
         {/* Status text */}
         <View style={styles.statusRow}>
-          <View style={[styles.statusDot, ledStatus ? styles.statusDotOn : styles.statusDotOff]} />
-          <Text style={[styles.statusLabel, { color: ledStatus ? '#10B981' : '#9CA3AF' }]}>
-            {isUpdatingLED ? 'Updating...' : ledStatus ? 'ON  —  Light is active' : 'OFF  —  Light is off'}
+          <View style={[styles.statusDot, relayStatus ? styles.statusDotOn : styles.statusDotOff]} />
+          <Text style={[styles.statusLabel, { color: relayStatus ? '#DC2626' : '#9CA3AF' }]}>
+            {isUpdatingRelay ? 'Updating...' : relayStatus ? 'ON  —  Relay is active' : 'OFF  —  Relay is off'}
           </Text>
         </View>
 
         {/* Tap hint */}
-        <Text style={styles.tapHint}>Tap the bulb to toggle</Text>
+        <Text style={styles.tapHint}>Tap the relay to toggle</Text>
       </View>
 
       {/* Quick Stats */}
@@ -234,8 +234,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Bulb
-  bulbTouchable: {
+  // Relay
+  relayTouchable: {
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 28,
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     shadowOffset: { width: 0, height: 0 },
   },
-  bulbCircle: {
+  relayCircle: {
     width: 160,
     height: 160,
     borderRadius: 80,
@@ -258,20 +258,20 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#E5E7EB',
   },
-  bulbCircleOn: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FCD34D',
-    shadowColor: '#FFD54F',
+  relayCircleOn: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#EF4444',
+    shadowColor: '#EF4444',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 24,
     elevation: 12,
   },
-  bulbIcon: {
+  relayIcon: {
     fontSize: 72,
     opacity: 0.35,
   },
-  bulbIconOn: {
+  relayIconOn: {
     opacity: 1,
   },
 
@@ -288,8 +288,8 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   statusDotOn: {
-    backgroundColor: '#10B981',
-    shadowColor: '#10B981',
+    backgroundColor: '#DC2626',
+    shadowColor: '#DC2626',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 6,

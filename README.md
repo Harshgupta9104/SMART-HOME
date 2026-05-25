@@ -1,35 +1,45 @@
 # SmartHomeApp
 
-A modern React Native application for controlling smart home devices (ESP32-based) via BLE provisioning and MQTT real-time communication.
+A React Native mobile application for discovering, provisioning, and controlling ESP32-based smart home devices via BLE and MQTT.
 
-## Features
+## 📱 Features
 
-- **BLE Provisioning** - Discover and provision new ESP32 devices over Bluetooth
-- **MQTT Real-time Control** - Control devices and receive live sensor data via HiveMQ Cloud
-- **WiFi Management** - Scan and reconfigure device WiFi networks with error handling
-- **Beautiful UI** - Modern, animated interface with real-time metrics and interactive controls
-- **Secure Storage** - Device credentials stored securely with Keychain
-- **Real-time LED Control** - Interactive bulb with instant feedback from device
-- **Live Metrics** - Soil moisture, temperature, humidity, WiFi signal with animations
-- **Error Handling** - Structured error types with user-friendly guidance
-- **State Machine** - Complex provisioning flow with progress tracking
+✅ **BLE Device Discovery** - Scan and discover ESP32 devices in provisioning mode  
+✅ **WiFi Provisioning** - Configure WiFi credentials for new devices  
+✅ **Real-Time Metrics** - Live sensor data via MQTT (soil moisture, temperature, humidity, WiFi signal)  
+✅ **Device Control** - Toggle LED and other controls with real-time feedback  
+✅ **Device Management** - Rename, remove, and reconfigure devices  
+✅ **Secure Storage** - AsyncStorage for device list, Keychain for passwords  
+✅ **Permission Management** - Bundled permission requests during onboarding  
+✅ **Error Handling** - Structured error types with user-friendly messages  
+✅ **Animations** - Smooth transitions and interactive UI elements  
 
-## Tech Stack
+## 🏗️ Architecture
 
-- **React Native 0.84** (TypeScript)
-- **react-native-ble-plx** — BLE scanning & provisioning
-- **mqtt** (WebSocket) — real-time device data via HiveMQ Cloud
-- **react-native-wifi-reborn** — WiFi network scanning
-- **@react-navigation** — navigation (native-stack, material-top-tabs)
-- **@react-native-async-storage** — onboarding state & device persistence
-- **react-native-keychain** — secure WiFi password storage
-- **react-native-permissions** — Android permission management
+The app uses a **layered architecture** with:
 
-## Quick Start
+- **UI Layer** - React Native screens with animations
+- **Context & Hooks** - Global state (BleContext) and provisioning state machine
+- **Service Layer** - Singleton services for MQTT, BLE, WiFi, storage, etc.
+- **External Services** - HiveMQ Cloud (MQTT), native BLE/WiFi APIs
+
+### Key Services
+
+| Service | Purpose |
+|---------|---------|
+| **MqttService** | WebSocket connection to HiveMQ, pub/sub for device topics |
+| **DeviceDataService** | Real-time metrics caching, listener pattern for UI updates |
+| **BleService** | Device discovery, connection, credential transmission |
+| **WiFiService** | Network scanning, current network detection, error handling |
+| **StorageService** | AsyncStorage for device persistence |
+| **KeychainService** | Secure password storage |
+| **PermissionService** | Android permission management |
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js >= 22.11.0
 - React Native CLI
 - Android SDK (for Android development)
 - Xcode (for iOS development)
@@ -37,203 +47,194 @@ A modern React Native application for controlling smart home devices (ESP32-base
 ### Installation
 
 ```bash
+# Install dependencies
 npm install
-npx react-native run-android
-# or
-npx react-native run-ios
+
+# Start Metro bundler
+npm start
+
+# In another terminal, run on Android
+npm run android
+
+# Or run on iOS
+npm run ios
 ```
 
-## Project Structure
-
-```
-src/
-├── screens/
-│   ├── StartupScreen.tsx              # Splash + permission onboarding
-│   ├── HomeScreen.tsx                 # Device list dashboard
-│   ├── SimpleBleProvisionScreen.tsx   # BLE scan & connect
-│   ├── WiFiProvisioningScreen.tsx     # WiFi network selection
-│   ├── ProvisioningProgressScreen.tsx # BLE provisioning progress
-│   ├── ProvisioningSuccessScreen.tsx  # Success confirmation
-│   ├── DeviceDetailsScreen.tsx        # Tab container
-│   ├── MetricsScreen.tsx              # Plant health + sensor data
-│   ├── ControllerScreen.tsx           # LED grow light control
-│   └── SettingsScreen.tsx             # Device config + WiFi reconfig
-├── services/
-│   ├── mqttService.ts                 # HiveMQ WebSocket connection
-│   ├── deviceDataService.ts           # MQTT metrics cache + listeners
-│   ├── bleService.ts                  # BLE scan & GATT operations
-│   ├── wifiService.ts                 # WiFi network scanning
-│   ├── storageService.ts              # AsyncStorage device persistence
-│   ├── keychainService.ts             # Secure WiFi password storage
-│   ├── permissionService.ts           # Android permission management
-│   ├── locationService.ts             # Location services check
-│   └── wifiErrors.ts                  # Structured WiFi error types
-├── context/
-│   └── BleContext.tsx                 # BLE state provider
-├── hooks/
-│   └── useProvisioning.ts             # BLE provisioning state machine
-├── constants/
-│   └── provisioningStates.ts          # Provisioning state enum
-└── navigation/
-    └── RootNavigator.tsx              # Stack navigator + onboarding gate
-```
-
-## Running
+### Build & Test
 
 ```bash
-# Start Metro bundler
-npx react-native start
+# Lint code
+npm run lint
 
-# Build and install on Android
-npx react-native run-android
-
-# Build and install on iOS
-npx react-native run-ios
+# Run tests
+npm run test
 ```
 
-## Device Provisioning Flow
-
-1. **First Launch** → StartupScreen requests BT + location permissions
-2. **Home Screen** → Tap "Add Device" → BLE scan for `PROV_*` devices
-3. **Select Device** → Connect to ESP32 via BLE
-4. **WiFi Setup** → Scan networks → Select SSID → Enter password
-5. **Provisioning** → Send credentials via BLE → Wait for WiFi connection
-6. **Success** → Device saved → Appears on Home dashboard
-7. **Control** → Tap device → Metrics / Controller / Settings tabs
-
-## MQTT Communication
-
-### Broker Configuration
-
-**HiveMQ Cloud (TLS WebSocket)**
-- URL: `wss://b01052fb9a1942c19262e349a38863d1.s1.eu.hivemq.cloud:8884/mqtt`
-- Username: `bluetooth`
-- Password: `Ble_12345`
-
-### Topic Structure
-
-All topics use the **short device ID** (e.g. `26B7B3F8`):
-
-| Topic | Direction | Payload | Purpose |
-|---|---|---|---|
-| `esp32/{id}/data` | ESP → App | JSON | Sensor data (soil, temp, humidity, RSSI, uptime, heap) |
-| `esp32/{id}/status` | ESP → App | string | `online` / `offline` |
-| `esp32/{id}/led/state` | ESP → App | string | `ON` / `OFF` |
-| `esp32/{id}/led/set` | App → ESP | string | `ON` / `OFF` |
-| `esp32/{id}/config` | App → ESP | JSON | WiFi update / factory reset |
-
-### LED Control
+## 📱 Navigation
 
 ```
-Topic:   esp32/{id}/led/set
-Payload: ON  or  OFF
-QoS:     1
+StartupScreen (Onboarding)
+  ├─ Splash animation
+  ├─ Permission explanation
+  └─ Permission request
+
+HomeScreen (Main Hub)
+  ├─ Device list
+  ├─ Add Device FAB
+  ├─ Device menu (long-press)
+  │
+  └─ DeviceDetailsScreen
+      ├─ MetricsTab (soil moisture, WiFi, temperature, etc.)
+      ├─ ControllerTab (LED control)
+      └─ SettingsTab (device info, WiFi config, factory reset)
+
+Provisioning Flow
+  ├─ SimpleBleProvisionScreen (BLE discovery)
+  ├─ WiFiProvisioningScreen (WiFi setup)
+  ├─ ProvisioningProgressScreen (progress)
+  └─ ProvisioningSuccessScreen (confirmation)
 ```
 
-**State Flow:**
-1. User taps bulb → App publishes command
-2. ESP32 receives → Changes LED → Publishes state
-3. App receives state → Updates UI (true device state, not optimistic)
+## 🔌 MQTT Communication
 
-### WiFi Reconfiguration
+### Broker
 
-```
-Topic:   esp32/{id}/config
-Payload: { "type": "wifi_update", "ssid": "...", "password": "..." }
-QoS:     1
-```
+- **URL:** `wss://b01052fb9a1942c19262e349a38863d1.s1.eu.hivemq.cloud:8884/mqtt`
+- **Username:** `bluetooth`
+- **Password:** `Ble_12345`
 
-**ESP32 Behavior:**
-1. Receives command
-2. Tries new credentials (3 attempts)
-3. If success → Saves to NVS → Restarts
-4. If fail → Rolls back to previous WiFi → Restarts
+### Topics
 
-## Device Details Tabs
+**Subscribe (ESP → App):**
+- `esp32/{id}/data` - Sensor data (JSON)
+- `esp32/{id}/status` - Device status (online/offline)
+- `esp32/{id}/led/state` - LED state (ON/OFF)
 
-### Metrics Tab
-- **Main KPI Card** - Soil moisture with circular progress ring
-- **Plant State** - Desert Dry → Dry → Healthy → Wet → Saturated
-- **State Colors** - Red → Orange → Green → Blue → Indigo
-- **Animated Glow** - Pulses when plant is "Healthy"
-- **Secondary Stats** - WiFi RSSI, Temperature, Humidity, Uptime
-- **Live Updates** - Fade animation on metric changes
+**Publish (App → ESP):**
+- `esp32/{id}/led/set` - LED command (ON/OFF)
+- `esp32/{id}/config` - WiFi update / factory reset (JSON)
 
-### Controller Tab (Default)
-- **Grow Light Control** - Large glowing bulb (tap to toggle)
-- **Animated Glow** - Yellow glow when ON
-- **Press Animation** - Scale effect for tactile feedback
-- **Status Indicator** - Green dot when ON
-- **Quick Stats** - Uptime, Free Heap, WiFi RSSI
-- **Real-time Feedback** - UI reflects true device state from MQTT
+### Example Payload
 
-### Settings Tab
-- **Device Information** - ID, MAC, status
-- **WiFi Information** - Current SSID with edit button
-- **WiFi Reconfiguration** - Scan networks → Select → Enter password
-- **Advanced Settings** - Restart, Reset WiFi, Remove device
-
-## Architecture
-
-### Service Architecture
-
-```
-App.tsx
-  └── getMQTTService().initialize() + connect()
-
-DeviceDetailsScreen / HomeScreen
-  └── getDeviceDataService().subscribe(deviceId, listener)
-        └── getMQTTService().subscribe(deviceId, callback)
-              └── subscribes to: data, status, led/state topics
-        └── DeviceDataService caches metrics + notifies UI listeners
-
-ControllerScreen
-  └── getDeviceDataService().updateLEDStatus(id, bool)
-        └── getMQTTService().sendLEDCommand(id, state)
-
-SettingsScreen
-  └── getDeviceDataService().reconfigureWiFi(id, ssid, password)
-        └── getMQTTService().sendWiFiUpdate(id, ssid, password)
+```json
+{
+  "device": "ESP32_26B7B3F8",
+  "fw": "3.0.0",
+  "uptime": 5615,
+  "rssi": -51,
+  "heap": 112680,
+  "soil_pct": 45,
+  "led": true
+}
 ```
 
-### State Management
+## 🔐 BLE Provisioning
 
-- **BleContext** - Global BLE state (Bluetooth, scanning, permissions)
-- **useProvisioning Hook** - Provisioning state machine with progress tracking
-- **DeviceDataService** - Real-time metrics caching and listener pattern
+### Service UUIDs
 
-### Key Design Patterns
+- **Provisioning Service:** `4fafc201-1fb5-459e-8fcc-c5c9c331914b`
+- **Provisioning Characteristic:** `beb5483e-36e1-4688-b7f5-ea07361b26a8`
+- **Device ID Service:** `12345678-1234-1234-1234-1234567890ab`
+- **Device ID Characteristic:** `12345678-1234-1234-1234-1234567890cd`
 
-1. **No Optimistic Updates** - UI always reflects true device state from MQTT
-2. **Singleton Services** - All services use singleton pattern for global state
-3. **Listener Pattern** - DeviceDataService notifies UI listeners on updates
-4. **Structured Errors** - WiFiError types with user-friendly messages
-5. **Onboarding Gate** - RootNavigator checks AsyncStorage flag
+### Provisioning Flow
 
-## Documentation
+```
+IDLE
+  ↓
+CONNECTING_BLE (connect to device, read device ID)
+  ↓
+SENDING_CREDENTIALS (write SSID + password)
+  ↓
+WAITING_WIFI (wait for WiFi confirmation)
+  ↓
+SUCCESS (device saved to storage)
+  or
+ERROR / TIMEOUT (show retry option)
+```
 
-**Complete documentation available in `DOCUMENTATION.md`** which includes:
+## 💾 Storage
 
-- **App Workflow & Navigation** - Screen flow and navigation structure
-- **Device Provisioning Flow** - Complete BLE provisioning journey with state machine
-- **MQTT Communication** - Topic structure, commands, and data flow
-- **BLE Provisioning Details** - Service UUIDs, WiFi scanning, error handling
-- **Device Control & Settings** - Metrics, controller, and settings tabs
-- **Architecture Overview** - Service architecture and data flow
-- **Key Features** - Complete feature list
-- **Development Notes** - Important patterns and testing checklist
-- **Troubleshooting** - Common issues and solutions
+### AsyncStorage
 
-## Recent Updates
+- `onboarding_completed` - Onboarding gate flag
+- `provisioned_devices` - Array of ProvisionedDevice objects
 
-✅ **LED Toggle Fix** - Removed optimistic updates, UI now reflects true device state
-✅ **MQTT State Parsing** - Fixed LED state field mapping
-✅ **UI Improvements** - Replaced MQTT badge with notification bell icon
-✅ **Documentation** - Consolidated into single comprehensive DOCUMENTATION.md file
+### React Native Keychain
 
-## Development
+- WiFi passwords for saved networks (encrypted)
 
-### Testing Checklist
+### In-Memory Cache
+
+- DeviceDataService caches real-time metrics
+
+## 🔐 Permissions
+
+Requested during onboarding (StartupScreen):
+
+- `BLUETOOTH_SCAN`
+- `BLUETOOTH_CONNECT`
+- `ACCESS_FINE_LOCATION`
+- `ACCESS_COARSE_LOCATION`
+- `NEARBY_WIFI_DEVICES` (Android 13+)
+
+## 🎨 Design System
+
+- **Primary Color:** #3B82F6 (Blue)
+- **Success Color:** #10B981 (Green)
+- **Warning Color:** #F59E0B (Amber)
+- **Error Color:** #EF4444 (Red)
+- **Background:** #F6F7FB (Light Gray)
+
+## 📚 Documentation
+
+- **[PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)** - Complete project overview
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Architecture and design patterns
+- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Quick reference guide
+- **[DOCUMENTATION.md](./DOCUMENTATION.md)** - Full technical documentation
+
+## 🔄 Key Patterns
+
+### Singleton Services
+
+All services are singletons for global state:
+
+```typescript
+const mqttService = getMQTTService();
+const deviceDataService = getDeviceDataService();
+```
+
+### Listener Pattern
+
+Services notify UI components of changes:
+
+```typescript
+const unsubscribe = deviceDataService.subscribe(deviceId, (metrics) => {
+  setMetrics(metrics);
+});
+
+return () => unsubscribe();
+```
+
+### No Optimistic Updates
+
+UI always reflects true device state from MQTT:
+
+```typescript
+// Send command
+await deviceDataService.updateLEDStatus(deviceId, true);
+
+// UI updates when ESP32 responds via MQTT
+// NOT immediately after sending
+```
+
+### State Machine
+
+Provisioning uses a state machine for complex flow orchestration.
+
+## 🧪 Testing
+
+### Manual Testing Checklist
 
 - [ ] BLE provisioning with new device
 - [ ] WiFi reconfiguration
@@ -244,25 +245,133 @@ SettingsScreen
 - [ ] MQTT connection loss and recovery
 - [ ] WiFi scanning with Location Services disabled
 
-### Building for Production
+## 🐛 Troubleshooting
 
-```bash
-# Android
-cd android && ./gradlew assembleRelease
+### LED Toggle Not Working
 
-# iOS
-cd ios && xcodebuild -scheme SmartHomeApp -configuration Release
+- Check MQTT connection status
+- Verify ESP32 is publishing to `esp32/{id}/led/state`
+- Check device ID mapping (BLE MAC vs MQTT short ID)
+
+### WiFi Scan Returns No Networks
+
+- Enable Location Services on device
+- Grant Location permissions
+- Check WiFi is enabled on device
+
+### Device Not Appearing After Provisioning
+
+- Verify device saved to AsyncStorage
+- Check MQTT connection is active
+- Verify device ID is correct
+
+### Metrics Not Updating
+
+- Check MQTT subscription is active
+- Verify ESP32 is publishing to `esp32/{id}/data`
+- Check device is online in MQTT broker
+
+## 📦 Dependencies
+
+### Core
+
+- `react-native` - Mobile framework
+- `react` - UI library
+- `typescript` - Type safety
+
+### Navigation
+
+- `@react-navigation/native` - Navigation framework
+- `@react-navigation/native-stack` - Stack navigator
+- `@react-navigation/bottom-tabs` - Tab navigator
+
+### BLE & WiFi
+
+- `react-native-ble-plx` - BLE communication
+- `react-native-wifi-reborn` - WiFi scanning
+- `react-native-geolocation-service` - Location services
+
+### Storage & Security
+
+- `@react-native-async-storage/async-storage` - Persistent storage
+- `react-native-keychain` - Secure credential storage
+
+### Communication
+
+- `mqtt` - MQTT client
+
+### Permissions
+
+- `react-native-permissions` - Permission management
+
+### UI
+
+- `react-native-safe-area-context` - Safe area handling
+- `react-native-screens` - Native screen handling
+- `react-native-tab-view` - Tab view component
+- `react-native-pager-view` - Pager component
+
+## 🚀 Performance
+
+### Optimization Strategies
+
+1. **Singleton Services** - Single instance across app
+2. **Listener Pattern** - Only notify interested components
+3. **Caching** - DeviceDataService caches metrics
+4. **Lazy Loading** - Devices loaded on screen focus
+5. **Native Animations** - Use `useNativeDriver: true`
+
+## 🔒 Security
+
+### Data Security
+
+- WiFi passwords stored in Keychain (encrypted)
+- MQTT credentials in code (hardcoded for demo)
+- Device IDs stored in AsyncStorage (not sensitive)
+
+### Communication
+
+- MQTT over WebSocket with TLS
+- BLE communication is local (no network)
+- No sensitive data in logs
+
+## 📝 Code Structure
+
+```
+src/
+├── screens/              # UI Screens
+├── services/             # Business Logic (Singletons)
+├── context/              # Global State
+├── hooks/                # Custom Hooks
+├── components/           # Reusable Components
+├── constants/            # Constants
+└── navigation/           # Navigation Stack
 ```
 
-## Troubleshooting
+## 🔗 Useful Links
 
-See `DOCUMENTATION.md` for detailed troubleshooting guide covering:
-- LED toggle issues
-- WiFi scanning problems
-- Device provisioning failures
-- Metrics not updating
-- MQTT connection issues
+- [React Native Docs](https://reactnative.dev/)
+- [React Navigation Docs](https://reactnavigation.org/)
+- [MQTT.js Docs](https://github.com/mqttjs/MQTT.js)
+- [HiveMQ Cloud](https://www.hivemq.com/mqtt-cloud/)
+- [BLE PLX Docs](https://github.com/dotintent/react-native-ble-plx)
 
-## License
+## 📞 Support
 
-MIT
+For issues or questions:
+
+1. Check the documentation files
+2. Review the relevant service file
+3. Check console logs with [prefix] tags
+4. Verify MQTT connection and device status
+
+## 📄 License
+
+This project is provided as-is for educational and development purposes.
+
+---
+
+**Last Updated:** May 2026  
+**Version:** 0.0.1  
+**Status:** Active Development
+

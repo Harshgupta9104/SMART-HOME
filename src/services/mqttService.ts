@@ -264,6 +264,43 @@ class MqttService {
   }
 
   /**
+   * Send relay control command (GPIO23)
+   */
+  async sendRelayCommand(deviceId: string, state: boolean): Promise<boolean> {
+    if (!this.isConnectedToMQTT()) {
+      console.warn('[MQTT] ⚠️ Not connected, cannot send relay command');
+      return false;
+    }
+
+    try {
+      const topic = `esp32/${deviceId}/relay/set`;
+      const message = state ? 'ON' : 'OFF';
+
+      console.log('[MQTT] 🔌 Publishing relay command to:', topic, 'Message:', message);
+
+      return new Promise((resolve) => {
+        if (this.client?.publish) {
+          this.client.publish(topic, message, { qos: 1 }, (err) => {
+            if (err) {
+              console.error('[MQTT] ❌ Publish error:', err);
+              resolve(false);
+            } else {
+              console.log('[MQTT] ✅ Published to', topic, ':', message);
+              resolve(true);
+            }
+          });
+        } else {
+          console.error('[MQTT] ❌ Client not ready');
+          resolve(false);
+        }
+      });
+    } catch (error) {
+      console.error('[MQTT] ❌ Send relay command error:', error);
+      return false;
+    }
+  }
+
+  /**
    * Send WiFi update command
    */
   async sendWiFiUpdate(deviceId: string, ssid: string, password: string): Promise<boolean> {
