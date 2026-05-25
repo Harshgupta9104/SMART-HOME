@@ -146,6 +146,11 @@ class MqttService {
         // Message is typically "ON" or "OFF"
         data = { led: message };
         console.log('[MQTT] 💡 LED state received:', message);
+      } else if (topic.includes('/relay/state')) {
+        // Relay state topic - convert to 'relay' field
+        // Message is typically "ON" or "OFF"
+        data = { relay: message };
+        console.log('[MQTT] 🔌 Relay state received:', message);
       }
 
       // Notify all listeners for this device
@@ -185,19 +190,21 @@ class MqttService {
         const dataTopic = `esp32/${deviceId}/data`;
         const statusTopic = `esp32/${deviceId}/status`;
         const ledStateTopic = `esp32/${deviceId}/led/state`;
+        const relayStateTopic = `esp32/${deviceId}/relay/state`;
 
         console.log('[MQTT] 📡 Subscribing to topics for device:', deviceId);
-        console.log('[MQTT] 📡 Topics:', { dataTopic, statusTopic, ledStateTopic });
+        console.log('[MQTT] 📡 Topics:', { dataTopic, statusTopic, ledStateTopic, relayStateTopic });
 
         // Subscribe to all topics
         if (this.client?.subscribe) {
-          this.client.subscribe([dataTopic, statusTopic, ledStateTopic], { qos: 1 }, (err) => {
+          this.client.subscribe([dataTopic, statusTopic, ledStateTopic, relayStateTopic], { qos: 1 }, (err) => {
             if (err) {
               console.error('[MQTT] ❌ Subscription error:', err);
             } else {
               console.log('[MQTT] ✅ Subscribed to:', dataTopic);
               console.log('[MQTT] ✅ Subscribed to:', statusTopic);
               console.log('[MQTT] ✅ Subscribed to:', ledStateTopic);
+              console.log('[MQTT] ✅ Subscribed to:', relayStateTopic);
             }
           });
         }

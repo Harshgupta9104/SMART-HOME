@@ -37,9 +37,9 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
     return () => unsubscribe();
   }, [device]);
 
-  // Pulsing glow when relay is ON
+  // Pulsing glow when relay is OFF (inverted logic)
   useEffect(() => {
-    if (relayStatus) {
+    if (!relayStatus) {  // ← Changed from "if (relayStatus)" to "if (!relayStatus)"
       glowLoop.current = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, { toValue: 1, duration: 1400, useNativeDriver: false }),
@@ -75,11 +75,17 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       
       if (!success) {
         console.warn('[Controller] Relay command failed');
+        setIsUpdatingRelay(false);
+        return;
       }
-      // UI will update automatically via MQTT subscription when ESP responds
+      
+      // Wait max 2 seconds for response, then unlock button
+      setTimeout(() => {
+        setIsUpdatingRelay(false);
+      }, 2000);
+      
     } catch (error) {
       console.error('[Controller] Error updating relay:', error);
-    } finally {
       setIsUpdatingRelay(false);
     }
   };
@@ -147,7 +153,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
             {/* Relay circle */}
             <View style={[styles.relayCircle, relayStatus && styles.relayCircleOn]}>
               <Text style={[styles.relayIcon, relayStatus && styles.relayIconOn]}>
-                {isUpdatingRelay ? '⏳' : '🔌'}
+                {isUpdatingRelay ? '⏳' : '💡'}
               </Text>
             </View>
           </TouchableOpacity>
@@ -157,7 +163,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
         <View style={styles.statusRow}>
           <View style={[styles.statusDot, relayStatus ? styles.statusDotOn : styles.statusDotOff]} />
           <Text style={[styles.statusLabel, { color: relayStatus ? '#DC2626' : '#9CA3AF' }]}>
-            {isUpdatingRelay ? 'Updating...' : relayStatus ? 'ON  —  Relay is active' : 'OFF  —  Relay is off'}
+            {isUpdatingRelay ? 'Updating...' : relayStatus ? 'OFF  —  Relay is off' : 'ON  —  Relay is active'}
           </Text>
         </View>
 
