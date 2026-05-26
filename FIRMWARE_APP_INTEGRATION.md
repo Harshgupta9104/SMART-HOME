@@ -1,331 +1,257 @@
-# Firmware ↔ App Integration Summary
+# Firmware & App Integration Guide
 
-## ✅ YES - Your App Works With Your Firmware
-
-Your updated ESP32 firmware (v3.0.0 with relay control on GPIO23) is **fully compatible** with the SmartHomeApp. Here's what you need to know:
-
----
-
-## 🎯 What Works Right Now (No Changes Needed)
-
-### 1. LED Control ✅
-- **Firmware:** Publishes LED state to `esp32/{id}/led/state`
-- **App:** ControllerScreen has LED bulb control
-- **Status:** Fully working, no changes needed
-
-### 2. Relay State Display ✅
-- **Firmware:** Publishes relay state in `/data` topic: `"relay": true/false`
-- **App:** Receives relay state in sensor data
-- **Status:** Working, relay state visible in metrics
-
-### 3. BLE Provisioning ✅
-- **Firmware:** Implements BLE provisioning with WiFi credential transmission
-- **App:** SimpleBleProvisionScreen + WiFiProvisioningScreen
-- **Status:** Fully working
-
-### 4. MQTT Communication ✅
-- **Firmware:** Publishes to HiveMQ Cloud with TLS
-- **App:** Subscribes to device topics
-- **Status:** Fully working
-
-### 5. Sensor Data ✅
-- **Firmware:** Publishes soil, WiFi, uptime, heap, etc.
-- **App:** MetricsScreen displays all metrics
-- **Status:** Fully working
+## Overview
+This document explains how the ESP32 firmware integrates with the SmartHomeApp. It covers the firmware architecture, configuration, and how to paste your ESP32 code into the provided files.
 
 ---
 
-## 🚀 What You Can Add (Optional)
+## 1. Firmware Files
 
-### Relay Control UI
-Add a relay control card to ControllerScreen (similar to LED control):
+The project includes two empty files for your ESP32 firmware:
 
-**Effort:** ~15 minutes  
-**Files to modify:** 3 files  
-**Complexity:** Low  
+### ESP32_FIRMWARE.cpp
+- Contains the main ESP32 firmware code
+- Handles BLE provisioning, WiFi connection, MQTT communication
+- Controls LED and relay via GPIO pins
+- Publishes sensor data
 
-See `RELAY_IMPLEMENTATION_GUIDE.md` for step-by-step instructions.
-
----
-
-## 📊 Firmware Features vs App Support
-
-| Feature | Firmware | App | Status |
-|---------|----------|-----|--------|
-| LED Control (GPIO2) | ✅ | ✅ | Working |
-| Relay Control (GPIO23) | ✅ | ⚠️ | State visible, control ready |
-| BLE Provisioning | ✅ | ✅ | Working |
-| WiFi Management | ✅ | ✅ | Working |
-| MQTT Communication | ✅ | ✅ | Working |
-| Soil Sensor | ✅ | ✅ | Working |
-| WiFi RSSI | ✅ | ✅ | Working |
-| Device Uptime | ✅ | ✅ | Working |
-| Heap Memory | ✅ | ✅ | Working |
-| NTP Sync | ✅ | ✅ | Working |
-| OLED Display | ✅ | N/A | N/A |
-| HTTP API | ✅ | ⚠️ | Optional |
-| Factory Reset | ✅ | ✅ | Working |
+### ESP32_CONFIG.h
+- Contains configuration constants
+- WiFi credentials (if hardcoded)
+- MQTT broker settings
+- GPIO pin definitions
+- Sensor calibration values
 
 ---
 
-## 🔌 MQTT Topic Mapping
+## 2. How to Add Your Firmware
 
-### Firmware Topics
-```
-esp32/{id}/status          ← Device status (online/offline)
-esp32/{id}/data            ← Sensor data (includes relay state)
-esp32/{id}/led/set         ← LED command (ON/OFF)
-esp32/{id}/led/state       ← LED state (ON/OFF)
-esp32/{id}/relay/set       ← Relay command (ON/OFF) [NEW]
-esp32/{id}/relay/state     ← Relay state (ON/OFF) [NEW]
-esp32/{id}/config          ← WiFi update / factory reset
+### Step 1: Prepare Your Code
+1. Get your ESP32 firmware code (Arduino IDE or PlatformIO)
+2. Get your configuration header file
+
+### Step 2: Paste into ESP32_FIRMWARE.cpp
+1. Open `ESP32_FIRMWARE.cpp` in the project
+2. Copy your entire firmware code
+3. Paste it into the file
+4. Save
+
+### Step 3: Paste into ESP32_CONFIG.h
+1. Open `ESP32_CONFIG.h` in the project
+2. Copy your configuration header
+3. Paste it into the file
+4. Save
+
+---
+
+## 3. Firmware Requirements
+
+Your ESP32 firmware must implement the following:
+
+### BLE Provisioning
+```cpp
+// Advertise as "PROV_{shortId}" during provisioning
+// Provide Provisioning Service with UUID: 4fafc201-1fb5-459e-8fcc-c5c9c331914b
+// Provide Device ID Service with UUID: 12345678-1234-1234-1234-1234567890ab
+// Accept WiFi credentials via BLE
+// Send confirmation when WiFi is connected
 ```
 
-### App Subscriptions
+### MQTT Topics
 ```
-✅ esp32/{id}/data         - Receives all sensor data
-✅ esp32/{id}/status       - Receives device status
-✅ esp32/{id}/led/state    - Receives LED state
-⚠️ esp32/{id}/relay/set    - Ready to publish (needs UI)
-⚠️ esp32/{id}/relay/state  - Ready to subscribe (needs UI)
+Subscribe to:
+  - esp32/{id}/led/set       (LED control)
+  - esp32/{id}/relay/set     (Relay control)
+  - esp32/{id}/config        (WiFi/config commands)
+
+Publish to:
+  - esp32/{id}/data          (Sensor data every 5 seconds)
+  - esp32/{id}/status        (Online/offline status)
+  - esp32/{id}/led/state     (LED state)
+  - esp32/{id}/relay/state   (Relay state)
 ```
 
----
+### GPIO Control
+```cpp
+// LED Control
+// - Receive ON/OFF command via MQTT
+// - Toggle LED on GPIO pin
+// - Publish state to esp32/{id}/led/state
 
-## 📋 Data Payload Example
+// Relay Control (GPIO23)
+// - Receive ON/OFF command via MQTT
+// - Toggle relay on GPIO23
+// - Publish state to esp32/{id}/relay/state
+```
 
-### Firmware Publishes to `/data`
-```json
+### Sensor Data
+```cpp
+// Publish JSON payload every 5 seconds:
 {
   "device": "ESP32_26B7B3F8",
   "fw": "3.0.0",
   "uptime": 5615,
   "rssi": -51,
   "heap": 112680,
-  "min_heap": 99368,
-  "ntp": "ok",
-  "soil_raw": 4095,
-  "soil_pct": 0,
+  "soil_pct": 45,
+  "temperature": 28.5,
+  "humidity": 65,
   "led": true,
-  "relay": true
-}
-```
-
-### App Receives As DeviceMetrics
-```typescript
-{
-  deviceId: "ESP32_26B7B3F8",
-  soilMoisture: 0,
-  wifiRSSI: -51,
-  ledStatus: true,
-  relayStatus: true,  // ← Can be added
-  uptime: 5615,
-  freeHeap: 112680,
-  temperature: undefined,
-  humidity: undefined,
-  lastUpdate: 1716633600000
+  "relay": false
 }
 ```
 
 ---
 
-## 🎯 Implementation Roadmap
+## 4. Configuration Requirements
 
-### Phase 1: Current State ✅
-- App works with firmware as-is
-- LED control fully functional
-- Relay state visible in metrics
-- All sensor data working
+Your configuration header must define:
 
-### Phase 2: Add Relay Control (Optional) ⏱️ 15 min
-1. Update `DeviceMetrics` interface
-2. Update field mapping in `DeviceDataService`
-3. Add `updateRelayStatus()` method
-4. Add relay control card to `ControllerScreen`
-
-### Phase 3: Advanced Features (Future)
-- Relay scheduling/automation
-- Relay history/logs
-- Relay in Settings tab
-- Relay in MetricsScreen
-
----
-
-## 🔄 Control Flow Diagram
-
-### LED Control (Already Working)
-```
-ControllerScreen
-  ↓ User taps LED
-handleBulbPress()
-  ↓
-deviceDataService.updateLEDStatus()
-  ↓
-mqttService.sendLEDCommand()
-  ↓
-Publish to esp32/{id}/led/set: "ON" or "OFF"
-  ↓
-ESP32 receives command
-  ↓
-GPIO2 toggles
-  ↓
-ESP32 publishes to esp32/{id}/led/state
-  ↓
-App receives via MQTT
-  ↓
-DeviceMetrics.ledStatus updates
-  ↓
-ControllerScreen re-renders
-```
-
-### Relay Control (Ready to Implement)
-```
-ControllerScreen
-  ↓ User taps Relay (after implementation)
-handleRelayPress()
-  ↓
-deviceDataService.updateRelayStatus()
-  ↓
-mqttService.sendRelayCommand()
-  ↓
-Publish to esp32/{id}/relay/set: "ON" or "OFF"
-  ↓
-ESP32 receives command
-  ↓
-GPIO23 toggles (Active LOW)
-  ↓
-ESP32 publishes to esp32/{id}/relay/state
-  ↓
-App receives via MQTT
-  ↓
-DeviceMetrics.relayStatus updates
-  ↓
-ControllerScreen re-renders
-```
-
----
-
-## 🧪 Testing Checklist
-
-### Before Testing
-- [ ] Firmware flashed to ESP32
-- [ ] Relay wired to GPIO23 (Active LOW)
-- [ ] MQTT broker accessible (HiveMQ Cloud)
-- [ ] App installed on device
-- [ ] Device provisioned via BLE
-
-### LED Control (Already Working)
-- [ ] Tap LED bulb in ControllerScreen
-- [ ] LED toggles on ESP32
-- [ ] UI updates with true state
-- [ ] OLED display shows LED state
-
-### Relay State Display (Works Now)
-- [ ] Provision device
-- [ ] Check MetricsScreen
-- [ ] Relay state visible in sensor data
-- [ ] OLED display shows relay state
-
-### Relay Control (After Implementation)
-- [ ] Add relay control card to ControllerScreen
-- [ ] Tap relay control
-- [ ] Relay toggles on ESP32
-- [ ] UI updates with true state
-- [ ] OLED display updates
-
----
-
-## 📚 Documentation Files
-
-| File | Purpose |
-|------|---------|
-| `FIRMWARE_COMPATIBILITY.md` | Detailed compatibility analysis |
-| `RELAY_IMPLEMENTATION_GUIDE.md` | Step-by-step relay control implementation |
-| `DOCUMENTATION.md` | Complete app documentation |
-| `ARCHITECTURE.md` | App architecture and design patterns |
-| `QUICK_REFERENCE.md` | Quick reference guide |
-| `PROJECT_OVERVIEW.md` | Project overview |
-
----
-
-## 🔐 Active LOW Logic
-
-Your firmware uses **Active LOW** for the relay:
-
+### MQTT Broker Settings
 ```cpp
-// OFF (initial state)
-digitalWrite(RELAY_PIN, HIGH);
-
-// ON
-digitalWrite(RELAY_PIN, LOW);
-
-// State check
-doc["relay"] = (digitalRead(RELAY_PIN) == LOW);  // LOW = ON
+#define MQTT_BROKER_URL "wss://b01052fb9a1942c19262e349a38863d1.s1.eu.hivemq.cloud:8884/mqtt"
+#define MQTT_USERNAME "bluetooth"
+#define MQTT_PASSWORD "Ble_12345"
 ```
 
-This is correctly implemented throughout your firmware. The app will handle this automatically once relay control is added.
+### GPIO Pins
+```cpp
+#define LED_PIN 2           // LED control pin
+#define RELAY_PIN 23        // Relay control pin
+#define SOIL_PIN 34         // Soil moisture sensor (ADC)
+#define TEMP_PIN 32         // Temperature sensor (DHT22)
+```
+
+### Sensor Calibration
+```cpp
+#define SOIL_DRY 4095       // ADC value when soil is dry
+#define SOIL_WET 1500       // ADC value when soil is wet
+```
+
+### BLE UUIDs
+```cpp
+#define PROV_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define PROV_CHAR_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define DEVICE_ID_SERVICE_UUID "12345678-1234-1234-1234-1234567890ab"
+#define DEVICE_ID_CHAR_UUID "12345678-1234-1234-1234-1234567890cd"
+```
 
 ---
 
-## 💡 Key Points
+## 5. Integration Checklist
 
-1. **Your firmware is production-ready** - All features are well-implemented
-2. **Your app is compatible** - No breaking changes needed
-3. **Relay state is already flowing** - Visible in metrics
-4. **Relay control is optional** - App works without it
-5. **Implementation is straightforward** - ~15 minutes to add UI
-6. **No optimistic updates** - UI always reflects true device state
-7. **MQTT is the communication layer** - BLE only for provisioning
-
----
-
-## 🚀 Next Steps
-
-### Option 1: Use App As-Is
-- App works perfectly with firmware
-- LED control fully functional
-- Relay state visible in metrics
-- No additional work needed
-
-### Option 2: Add Relay Control UI
-1. Follow `RELAY_IMPLEMENTATION_GUIDE.md`
-2. Takes ~15 minutes
-3. Adds relay control card to ControllerScreen
-4. Fully integrated with MQTT
-
-### Option 3: Advanced Features
-- Add relay scheduling
-- Add relay history
-- Add relay automation
-- Add relay to other screens
+- [ ] BLE provisioning implemented
+- [ ] WiFi connection with retry logic
+- [ ] MQTT connection to HiveMQ Cloud
+- [ ] LED control via GPIO pin
+- [ ] Relay control via GPIO23
+- [ ] Sensor data publishing (every 5 seconds)
+- [ ] Status publishing (online/offline)
+- [ ] WiFi reconfiguration support
+- [ ] Factory reset support
+- [ ] Error handling and logging
 
 ---
 
-## ✨ Summary
+## 6. Testing the Integration
 
-**Your firmware and app are fully compatible.** The app works with your firmware right now. Relay state is already being published and received. To add relay control UI, follow the implementation guide. Everything is designed to work together seamlessly.
+### Test BLE Provisioning
+1. Flash firmware to ESP32
+2. Open SmartHomeApp
+3. Tap "Add Device"
+4. Verify device appears in BLE scan
+5. Select device and enter WiFi credentials
+6. Verify device connects to WiFi
 
-**Status:** ✅ Ready to use  
-**Effort to add relay control:** ~15 minutes  
-**Complexity:** Low  
-**Risk:** None (non-breaking changes)
+### Test MQTT Communication
+1. Verify device appears in HomeScreen
+2. Tap device to open ControllerScreen
+3. Tap LED bulb to toggle LED
+4. Verify LED toggles on ESP32
+5. Verify relay toggles on GPIO23
+
+### Test Metrics
+1. Open MetricsScreen
+2. Verify sensor data updates every 5 seconds
+3. Verify WiFi RSSI displays correctly
+4. Verify temperature and humidity display
 
 ---
 
-## 📞 Support
+## 7. Troubleshooting
 
-For questions or issues:
+### Device Not Discovered
+- Check BLE advertising is enabled
+- Verify device name starts with "PROV_"
+- Check BLE service UUIDs are correct
 
-1. Check `FIRMWARE_COMPATIBILITY.md` for detailed analysis
-2. Check `RELAY_IMPLEMENTATION_GUIDE.md` for step-by-step instructions
-3. Check `DOCUMENTATION.md` for app documentation
-4. Check `ARCHITECTURE.md` for architecture details
-5. Review console logs with `[prefix]` tags for debugging
+### WiFi Connection Fails
+- Verify WiFi SSID and password are correct
+- Check WiFi is 2.4GHz (not 5GHz)
+- Verify WiFi credentials are being received via BLE
+
+### MQTT Connection Fails
+- Verify broker URL is correct
+- Check username and password
+- Verify internet connection is active
+
+### LED/Relay Not Toggling
+- Verify GPIO pins are correct
+- Check MQTT subscription is active
+- Verify device ID is correct
+
+### Metrics Not Updating
+- Verify sensor connections
+- Check MQTT publishing is working
+- Verify JSON payload format is correct
+
+---
+
+## 8. File Structure
+
+```
+SmartHomeApp/
+├── ESP32_FIRMWARE.cpp          ← Paste your firmware code here
+├── ESP32_CONFIG.h              ← Paste your configuration here
+├── APP_WORKFLOW.md             ← App workflow documentation
+├── BLE_ESP32_WORKFLOW.md       ← BLE & ESP32 documentation
+├── MQTT_WORKFLOW.md            ← MQTT documentation
+├── README.md                   ← Project overview
+└── src/
+    ├── services/
+    │   ├── mqttService.ts      ← MQTT client
+    │   ├── deviceDataService.ts ← Device metrics
+    │   └── wifiService.ts      ← WiFi scanning
+    └── screens/
+        ├── ControllerScreen.tsx ← LED/relay control
+        ├── MetricsScreen.tsx    ← Sensor metrics
+        └── ...
+```
+
+---
+
+## 9. Next Steps
+
+1. **Prepare Your Firmware**
+   - Get your ESP32 firmware code
+   - Get your configuration header
+
+2. **Paste Code**
+   - Paste firmware into `ESP32_FIRMWARE.cpp`
+   - Paste configuration into `ESP32_CONFIG.h`
+
+3. **Test Integration**
+   - Flash firmware to ESP32
+   - Test BLE provisioning
+   - Test MQTT communication
+   - Test LED/relay control
+
+4. **Deploy**
+   - Build release APK
+   - Test on device
+   - Share with users
 
 ---
 
 **Last Updated:** May 2026  
-**Firmware Version:** 3.0.0  
-**App Version:** 0.0.1  
-**Status:** ✅ Fully Compatible
-
+**Version:** 1.0

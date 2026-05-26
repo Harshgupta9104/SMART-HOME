@@ -1,4 +1,4 @@
-# BLE Provisioning & ESP32 Workflow
+# BLE Provisioning & ESP32 System Architecture
 
 ## Overview
 BLE (Bluetooth Low Energy) is used for device discovery and provisioning. Once provisioned, the ESP32 connects to WiFi and communicates via MQTT. This document explains the complete BLE provisioning flow and ESP32 system architecture.
@@ -27,7 +27,6 @@ BLE provisioning is the process of:
 ## 2. BLE Service & Characteristic UUIDs
 
 ### Service UUIDs
-
 ```
 Provisioning Service: 4fafc201-1fb5-459e-8fcc-c5c9c331914b
   └─ Used for sending WiFi credentials
@@ -37,7 +36,6 @@ Device ID Service: 12345678-1234-1234-1234-1234567890ab
 ```
 
 ### Characteristic UUIDs
-
 ```
 Provisioning Characteristic: beb5483e-36e1-4688-b7f5-ea07361b26a8
   ├─ Service: Provisioning Service
@@ -216,110 +214,7 @@ ProvisioningProgressScreen
 
 ---
 
-## 5. BLE Communication Details
-
-### Reading Device ID
-
-```typescript
-// In BleService
-async readDeviceId(deviceId: string): Promise<string> {
-  // Connect to device
-  const device = await this.manager.connectToDevice(deviceId);
-  
-  // Discover services
-  await device.discoverAllServicesAndCharacteristics();
-  
-  // Get Device ID Service
-  const service = await device.serviceForUUID('12345678-1234-1234-1234-1234567890ab');
-  
-  // Get Device ID Characteristic
-  const characteristic = await service.characteristicForUUID(
-    '12345678-1234-1234-1234-1234567890cd'
-  );
-  
-  // Read value
-  const data = await characteristic.read();
-  
-  // Convert to string
-  const shortId = Buffer.from(data.value, 'base64').toString('utf8');
-  
-  return shortId; // e.g., "26B7B3F8"
-}
-```
-
-### Writing WiFi Credentials
-
-```typescript
-// In BleService
-async sendWiFiCredentials(
-  deviceId: string,
-  ssid: string,
-  password: string
-): Promise<void> {
-  // Connect to device
-  const device = await this.manager.connectToDevice(deviceId);
-  
-  // Discover services
-  await device.discoverAllServicesAndCharacteristics();
-  
-  // Get Provisioning Service
-  const service = await device.serviceForUUID(
-    '4fafc201-1fb5-459e-8fcc-c5c9c331914b'
-  );
-  
-  // Get Provisioning Characteristic
-  const characteristic = await service.characteristicForUUID(
-    'beb5483e-36e1-4688-b7f5-ea07361b26a8'
-  );
-  
-  // Prepare credentials
-  const credentials = JSON.stringify({ ssid, password });
-  const base64 = Buffer.from(credentials).toString('base64');
-  
-  // Write to characteristic
-  await characteristic.writeWithResponse(base64);
-}
-```
-
-### Listening for Notifications
-
-```typescript
-// In BleService
-async listenForWiFiConfirmation(
-  deviceId: string,
-  timeout: number = 30000
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const device = this.manager.getConnectedDevices()[0];
-    
-    if (!device) {
-      reject(new Error('Device not connected'));
-      return;
-    }
-    
-    // Set up timeout
-    const timeoutId = setTimeout(() => {
-      reject(new Error('WiFi connection timeout'));
-    }, timeout);
-    
-    // Listen for notifications
-    device.onCharacteristicValueUpdated((characteristic) => {
-      if (characteristic.uuid === 'beb5483e-36e1-4688-b7f5-ea07361b26a8') {
-        const value = Buffer.from(characteristic.value, 'base64').toString('utf8');
-        
-        if (value === 'WIFI_CONNECTED') {
-          clearTimeout(timeoutId);
-          resolve();
-        }
-      }
-    });
-  });
-}
-```
-
----
-
-## 6. ESP32 System Architecture
+## 5. ESP32 System Architecture
 
 ### ESP32 Firmware Components
 
@@ -380,59 +275,9 @@ ESP32 Firmware
 
 ---
 
-## 7. ESP32 Provisioning Mode
-
-### Entering Provisioning Mode
-
-```
-ESP32 starts
-  ├─ Check if WiFi credentials exist in NVS
-  │
-  ├─ If YES
-  │   ├─ Connect to saved WiFi
-  │   ├─ Connect to MQTT
-  │   └─ Start normal operation
-  │
-  └─ If NO
-      ├─ Enter provisioning mode
-      ├─ Start BLE advertising
-      ├─ Advertise as "PROV_{shortId}"
-      │   └─ shortId = last 8 chars of MAC address
-      ├─ Wait for BLE connection
-      ├─ Listen for WiFi credentials
-      └─ After WiFi connection, exit provisioning mode
-```
-
-### Exiting Provisioning Mode
-
-```
-ESP32 in provisioning mode
-  ├─ Receives WiFi credentials via BLE
-  ├─ Attempts to connect to WiFi
-  │
-  ├─ If connection successful
-  │   ├─ Save credentials to NVS
-  │   ├─ Publish confirmation via BLE notification
-  │   ├─ Disable BLE
-  │   ├─ Connect to MQTT
-  │   ├─ Start publishing sensor data
-  │   └─ Exit provisioning mode
-  │
-  └─ If connection fails
-      ├─ Retry 3 times
-      ├─ If all retries fail
-      │   ├─ Publish error via BLE notification
-      │   ├─ Stay in provisioning mode
-      │   └─ Wait for new credentials
-      └─ User can try again
-```
-
----
-
-## 8. LED Control on ESP32
+## 6. LED Control on ESP32
 
 ### LED Hardware Setup
-
 ```
 ESP32 GPIO Pin (configurable, typically GPIO2 or GPIO4)
   ├─ Connected to LED anode (positive)
@@ -441,7 +286,6 @@ ESP32 GPIO Pin (configurable, typically GPIO2 or GPIO4)
 ```
 
 ### LED Control Flow
-
 ```
 App sends MQTT command
   ├─ Topic: esp32/{id}/led/set
@@ -461,18 +305,14 @@ App receives state update
 ```
 
 ### ESP32 LED Code Example
-
 ```cpp
-// Define LED pin
 #define LED_PIN 2
 
-// Setup
 void setup() {
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW); // LED off initially
+  digitalWrite(LED_PIN, LOW);
 }
 
-// MQTT callback
 void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   String message = String((char*)payload).substring(0, length);
   
@@ -495,10 +335,9 @@ void publishLEDState(String state) {
 
 ---
 
-## 9. Relay Control on ESP32
+## 7. Relay Control on ESP32
 
 ### Relay Hardware Setup
-
 ```
 ESP32 GPIO23
   ├─ Connected to relay control pin
@@ -509,7 +348,6 @@ ESP32 GPIO23
 ```
 
 ### Relay Control Flow
-
 ```
 App sends MQTT command
   ├─ Topic: esp32/{id}/relay/set
@@ -529,18 +367,14 @@ App receives state update
 ```
 
 ### ESP32 Relay Code Example
-
 ```cpp
-// Define relay pin
 #define RELAY_PIN 23
 
-// Setup
 void setup() {
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW); // Relay off initially
+  digitalWrite(RELAY_PIN, LOW);
 }
 
-// MQTT callback
 void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   String message = String((char*)payload).substring(0, length);
   
@@ -563,10 +397,9 @@ void publishRelayState(String state) {
 
 ---
 
-## 10. Sensor Data Publishing
+## 8. Sensor Data Publishing
 
 ### Sensor Reading Flow
-
 ```
 ESP32 main loop
   ├─ Every 5 seconds
@@ -595,10 +428,8 @@ ESP32 main loop
 ```
 
 ### ESP32 Sensor Code Example
-
 ```cpp
 void publishSensorData() {
-  // Read sensors
   int soilMoisture = analogRead(SOIL_PIN);
   float temperature = readTemperature();
   float humidity = readHumidity();
@@ -606,7 +437,6 @@ void publishSensorData() {
   uint32_t freeHeap = ESP.getFreeHeap();
   uint32_t uptime = millis() / 1000;
   
-  // Create JSON
   StaticJsonDocument<256> doc;
   doc["device"] = "ESP32_" + deviceId;
   doc["fw"] = "3.0.0";
@@ -619,7 +449,6 @@ void publishSensorData() {
   doc["led"] = digitalRead(LED_PIN);
   doc["relay"] = digitalRead(RELAY_PIN);
   
-  // Serialize and publish
   String payload;
   serializeJson(doc, payload);
   
@@ -630,10 +459,9 @@ void publishSensorData() {
 
 ---
 
-## 11. WiFi Reconfiguration
+## 9. WiFi Reconfiguration
 
 ### WiFi Update Command
-
 ```
 App sends MQTT command
   ├─ Topic: esp32/{id}/config
@@ -659,10 +487,9 @@ ESP32 receives command
 
 ---
 
-## 12. Factory Reset
+## 10. Factory Reset
 
 ### Factory Reset Command
-
 ```
 App sends MQTT command
   ├─ Topic: esp32/{id}/config
@@ -684,10 +511,9 @@ ESP32 receives command
 
 ---
 
-## 13. Device Status Publishing
+## 11. Device Status Publishing
 
 ### Online/Offline Status
-
 ```
 ESP32 connects to MQTT
   ├─ Publish "online" to esp32/{id}/status
@@ -702,10 +528,9 @@ App receives status update
 
 ---
 
-## 14. BLE Provisioning Error Handling
+## 12. BLE Provisioning Error Handling
 
 ### Common Errors
-
 ```
 BLE Connection Failed
   ├─ Cause: Device out of range or not in provisioning mode
@@ -730,7 +555,7 @@ BLE Notification Not Received
 
 ---
 
-## 15. Troubleshooting
+## 13. Troubleshooting
 
 ### Device Not Discovered
 - Ensure ESP32 is in provisioning mode

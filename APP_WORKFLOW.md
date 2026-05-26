@@ -1,4 +1,4 @@
-# App Workflow - How SmartHomeApp Works
+# App Workflow - SmartHomeApp Complete Guide
 
 ## Overview
 SmartHomeApp is a React Native app that discovers, provisions, and controls ESP32 smart home devices. It uses BLE for device discovery and provisioning, and MQTT for real-time communication.
@@ -14,13 +14,11 @@ Initialize MQTT connection to HiveMQ Cloud
   ↓
 Check AsyncStorage for onboarding_completed flag
   ↓
-  ├─ Flag NOT set → Show StartupScreen (splash + permissions)
+  ├─ Flag NOT set → Show StartupScreen
   │   ├─ 3.5s splash animation
   │   ├─ Permission explanation
-  │   ├─ Request all permissions at once
+  │   ├─ Request all permissions
   │   └─ Set onboarding_completed flag
-  │       ↓
-  │   HomeScreen
   │
   └─ Flag set → Go directly to HomeScreen
       ↓
@@ -28,8 +26,7 @@ Check AsyncStorage for onboarding_completed flag
   ├─ Load provisioned devices from AsyncStorage
   ├─ Subscribe to MQTT for each device
   ├─ Show device list with status
-  ├─ Add Device FAB button
-  └─ Long-press menu for device management
+  └─ Add Device FAB button
 ```
 
 ---
@@ -65,8 +62,6 @@ WiFiProvisioningScreen
 WiFiProvisioningScreen
   ↓
 ProvisioningProgressScreen
-  ├─ useProvisioning hook starts state machine
-  │
   ├─ State 1: CONNECTING_BLE
   │   ├─ Connect to ESP32 via BLE
   │   ├─ Read device ID from BLE characteristic
@@ -403,27 +398,10 @@ Real-time device metrics
 The app **never** optimistically updates the UI. All state changes are driven by actual device responses via MQTT. This ensures the UI always reflects the true device state.
 
 ### Singleton Services
-All services use the singleton pattern for global state:
-```typescript
-let serviceInstance: Service | null = null;
-
-export const getService = (): Service => {
-  if (!serviceInstance) {
-    serviceInstance = new Service();
-  }
-  return serviceInstance;
-};
-```
+All services use the singleton pattern for global state.
 
 ### Listener Pattern
-DeviceDataService uses a listener pattern to notify UI components:
-```typescript
-const unsubscribe = deviceDataService.subscribe(deviceId, (metrics) => {
-  setMetrics(metrics);
-});
-
-return () => unsubscribe();
-```
+DeviceDataService uses a listener pattern to notify UI components.
 
 ### State Machine
 Provisioning uses a state machine for complex flow orchestration.
