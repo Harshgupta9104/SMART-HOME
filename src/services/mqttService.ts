@@ -220,10 +220,11 @@ class MqttService {
           const dataTopic = `esp32/${deviceId}/data`;
           const statusTopic = `esp32/${deviceId}/status`;
           const ledStateTopic = `esp32/${deviceId}/led/state`;
+          const relayStateTopic = `esp32/${deviceId}/relay/state`;
 
           console.log('[MQTT] 🔕 Unsubscribing from topics for device:', deviceId);
           if (this.client?.unsubscribe) {
-            this.client.unsubscribe([dataTopic, statusTopic, ledStateTopic]);
+            this.client.unsubscribe([dataTopic, statusTopic, ledStateTopic, relayStateTopic]);
           }
         }
       };

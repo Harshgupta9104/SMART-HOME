@@ -10,23 +10,29 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BleProvider } from './src/context/BleContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { getMQTTService } from './src/services/mqttService';
+import { getPermissionService } from './src/services/permissionService';
 
 function App() {
-  // Permissions are now requested during onboarding (StartupScreen)
-  // NOT on app startup
-  // This provides a better UX with explanation before requesting
-
+  // Request permissions silently on app startup
   useEffect(() => {
+    const requestPermissions = async () => {
+      try {
+        const permissionService = getPermissionService();
+        await permissionService.requestProvisioningPermissions();
+      } catch (error) {
+        // Permissions request failed - app will still work but with limited functionality
+      }
+    };
+
+    requestPermissions();
+
     // Initialize MQTT connection on app startup
     const initializeMQTT = async () => {
       try {
         const mqttService = getMQTTService();
 
-        console.log('[App] 🚀 Initializing MQTT...');
-
         // Step 1: Initialize client (setup callbacks)
         await mqttService.initialize();
-        console.log('[App] ✅ MQTT client initialized');
 
         // Step 2: Connect to broker via WebSocket
         const mqttConfig = {
