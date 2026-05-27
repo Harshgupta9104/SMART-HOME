@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/Feather';
 import { getStorageService, ProvisionedDevice } from '../services/storageService';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 
@@ -33,7 +34,6 @@ const HomeScreen = ({ navigation }: any) => {
   const [showDeviceMenu, setShowDeviceMenu] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState('');
-  const [longPressDevice, setLongPressDevice] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('All rooms');
   const [deviceMetrics, setDeviceMetrics] = useState<Map<string, DeviceMetrics>>(new Map());
   const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
@@ -47,7 +47,7 @@ const HomeScreen = ({ navigation }: any) => {
   const deviceDataService = getDeviceDataService();
   const unsubscribersRef = useRef<Map<string, () => void>>(new Map());
 
-  // Room list - extracted from device names
+  // Room list
   const rooms = ['All rooms', 'Living room', 'Bedroom', 'Kitchen', 'Bathroom', 'Office'];
 
   // Entry animation on mount
@@ -81,7 +81,6 @@ const HomeScreen = ({ navigation }: any) => {
 
       // Subscribe to real-time metrics for each device
       provisionedDevices.forEach(device => {
-        // Use MQTT device ID if available, fallback to device.id
         const mqttDeviceId = device.mqttDeviceId || device.id;
         
         // Unsubscribe from old listener if exists
@@ -90,7 +89,6 @@ const HomeScreen = ({ navigation }: any) => {
 
         // Subscribe to new metrics using MQTT device ID
         const unsubscribe = deviceDataService.subscribe(mqttDeviceId, (metrics: DeviceMetrics) => {
-          // Update metrics cache
           setDeviceMetrics(prev => new Map(prev).set(mqttDeviceId, metrics));
           console.log('[HomeScreen] Device metrics updated:', mqttDeviceId);
         });
@@ -115,18 +113,12 @@ const HomeScreen = ({ navigation }: any) => {
     navigation.navigate('SimpleBleProvision');
   };
 
-  const handleSettingsPress = () => {
-    console.log('[HomeScreen] Settings pressed');
-    navigation.navigate('Settings');
-  };
-
   const handleDevicePress = (device: ProvisionedDevice) => {
     navigation.navigate('DeviceDetails', { device });
   };
 
   const handleDeviceLongPress = (device: ProvisionedDevice) => {
     setSelectedDevice(device);
-    setLongPressDevice(device.id);
     setShowDeviceMenu(true);
   };
 
@@ -142,23 +134,18 @@ const HomeScreen = ({ navigation }: any) => {
     setTogglingDevice(device.id);
     
     try {
-      // Determine which control to toggle based on device type
       const deviceNameLower = device.name.toLowerCase();
       let success = false;
 
       if (deviceNameLower.includes('light') || deviceNameLower.includes('led')) {
-        // Toggle LED
         success = await deviceDataService.updateLEDStatus(mqttDeviceId, !metrics.ledStatus);
       } else if (deviceNameLower.includes('relay') || deviceNameLower.includes('pump')) {
-        // Toggle Relay
         success = await deviceDataService.updateRelayStatus(mqttDeviceId, !metrics.relayStatus);
       } else {
-        // Default to relay
         success = await deviceDataService.updateRelayStatus(mqttDeviceId, !metrics.relayStatus);
       }
 
       if (success) {
-        // Add to activity log
         const action = deviceNameLower.includes('light') || deviceNameLower.includes('led')
           ? `LED turned ${!metrics.ledStatus ? 'ON' : 'OFF'}`
           : `Device turned ${!metrics.relayStatus ? 'ON' : 'OFF'}`;
@@ -183,7 +170,7 @@ const HomeScreen = ({ navigation }: any) => {
       timestamp: Date.now(),
     };
 
-    setActivityLog(prev => [newLog, ...prev].slice(0, 5)); // Keep last 5 activities
+    setActivityLog(prev => [newLog, ...prev].slice(0, 5));
   };
 
   const handleRenameDevice = async () => {
@@ -210,7 +197,7 @@ const HomeScreen = ({ navigation }: any) => {
 
     Alert.alert(
       'Remove Device',
-      `Remove "${selectedDevice.name}" from your dashboard?\n\nThis will remove the device from your dashboard.`,
+      `Remove "${selectedDevice.name}" from your dashboard?`,
       [
         { text: 'Cancel', onPress: () => {}, style: 'cancel' },
         {
@@ -220,7 +207,6 @@ const HomeScreen = ({ navigation }: any) => {
               await storageService.removeProvisionedDevice(selectedDevice.id);
               setDevices(devices.filter(d => d.id !== selectedDevice.id));
               
-              // Unsubscribe from metrics
               const unsubscribe = unsubscribersRef.current.get(selectedDevice.id);
               if (unsubscribe) unsubscribe();
               unsubscribersRef.current.delete(selectedDevice.id);
@@ -238,20 +224,6 @@ const HomeScreen = ({ navigation }: any) => {
     );
   };
 
-  const handleReconfigureWiFi = () => {
-    if (!selectedDevice) return;
-    setShowDeviceMenu(false);
-    // TODO: Navigate to WiFi reconfiguration screen
-    Alert.alert('WiFi Reconfiguration', 'Coming soon');
-  };
-
-  const handleRestartDevice = () => {
-    if (!selectedDevice) return;
-    setShowDeviceMenu(false);
-    // TODO: Send restart command via BLE/MQTT
-    Alert.alert('Restart Device', 'Device restart command sent');
-  };
-
   const formatActivityTime = (timestamp: number) => {
     const now = Date.now();
     const diffMs = now - timestamp;
@@ -266,73 +238,41 @@ const HomeScreen = ({ navigation }: any) => {
     return new Date(timestamp).toLocaleDateString();
   };
 
-  const getDeviceIcon = (deviceName: string) => {
-    const name = deviceName.toLowerCase();
-    if (name.includes('plant') || name.includes('soil')) return '🌱';
-    if (name.includes('light') || name.includes('led')) return '💡';
-    if (name.includes('temp') || name.includes('sensor')) return '🌡️';
-    if (name.includes('motion')) return '🔍';
-    if (name.includes('door') || name.includes('window')) return '🚪';
-    if (name.includes('pump') || name.includes('relay')) return '🔌';
-    if (name.includes('ac') || name.includes('air')) return '❄️';
-    if (name.includes('lock')) return '🔒';
-    return '📱';
-  };
-
   const getGreeting = () => {
     const hour = new Date().getHours();
-    const greetings = {
-      morning: [
-        '🌅 Good morning',
-        '☀️ Rise and shine',
-        '👋 Welcome back',
-        '✨ Your smart home is ready',
-        '🌤 Hope you have a productive day',
-        '⚡ Everything looks good this morning',
-        '🏡 Home is active and running smoothly',
-      ],
-      afternoon: [
-        '🌤 Good afternoon',
-        '✨ Hope your day is going well',
-        '⚡ Your home is running smoothly',
-        '📶 Devices are active and connected',
-        '🔋 Energy usage looks normal today',
-        '🏡 SmartHome Hub is online',
-        '👌 Everything is under control',
-      ],
-      evening: [
-        '🌙 Good evening',
-        '👋 Welcome home',
-        '✨ Your home is calm tonight',
-        '🔒 Relax, everything is secure',
-        '💡 Evening ambiance is ready',
-        '⚡ Devices are stable and connected',
-        '🌙 Time to unwind',
-      ],
-      night: [
-        '🌌 Good night',
-        '🌙 Your home is resting',
-        '🔒 Everything is calm and secure',
-        '✨ Night mode is active',
-        '😴 Sleep well',
-        '⚡ Lights and devices are under control',
-        '🏡 SmartHome Hub is protecting your home',
-      ],
+    const deviceCount = devices.length;
+    const onlineCount = getOnlineCount();
+    
+    let greeting = {
+      text: '',
+      icon: '',
+      subtitle: '',
+      iconColor: '',
     };
 
-    let period = 'afternoon';
     if (hour >= 5 && hour < 12) {
-      period = 'morning';
+      greeting.text = 'Good morning';
+      greeting.icon = 'sun';
+      greeting.subtitle = 'Ready to power your day?';
+      greeting.iconColor = '#FCD34D'; // Yellow sun
     } else if (hour >= 12 && hour < 17) {
-      period = 'afternoon';
+      greeting.text = 'Good afternoon';
+      greeting.icon = 'cloud';
+      greeting.subtitle = 'Your home is running smoothly';
+      greeting.iconColor = '#9CA3AF'; // Grey cloud
     } else if (hour >= 17 && hour < 22) {
-      period = 'evening';
+      greeting.text = 'Good evening';
+      greeting.icon = 'moon';
+      greeting.subtitle = 'Relax and enjoy your evening';
+      greeting.iconColor = '#6366F1'; // Indigo night
     } else {
-      period = 'night';
+      greeting.text = 'Good night';
+      greeting.icon = 'cloud-rain';
+      greeting.subtitle = 'Your home is secure tonight';
+      greeting.iconColor = '#60A5FA'; // Blue rain
     }
 
-    const periodGreetings = greetings[period as keyof typeof greetings];
-    return periodGreetings[Math.floor(Math.random() * periodGreetings.length)];
+    return greeting;
   };
 
   const getStatusColor = (status: string) => {
@@ -366,6 +306,7 @@ const HomeScreen = ({ navigation }: any) => {
 
   const getOnlineCount = () => devices.filter(d => d.status === 'online').length;
   const getIdleCount = () => devices.filter(d => d.status === 'offline').length;
+  const getActiveCount = () => devices.filter(d => d.status === 'online').length;
 
   // Cleanup on unmount
   useEffect(() => {
@@ -386,41 +327,35 @@ const HomeScreen = ({ navigation }: any) => {
         },
       ]}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#F6F7FB" />
+      <StatusBar barStyle="dark-content" backgroundColor="#F4F7FB" />
 
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.greetingRow}>
-          <Text style={styles.greeting}>{getGreeting()}</Text>
-        </View>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.headerTitle}>SmartHome Hub</Text>
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <View style={styles.greetingContainer}>
+            <Icon name={getGreeting().icon} size={18} color={getGreeting().iconColor} />
+            <Text style={styles.greetingText}>{getGreeting().text}</Text>
           </View>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => Alert.alert('Notifications', 'No new notifications')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.notificationIcon}>🔔</Text>
+        </Animated.View>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.headerTitle} numberOfLines={1}>Smart Home</Text>
+          <View style={styles.headerIcons}>
+            <TouchableOpacity style={styles.iconButton}>
+              <Icon name="bell" size={19} color="#111827" />
+              <View style={styles.notificationDot} />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.settingsButton}
-              onPress={handleSettingsPress}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.settingsIcon}>⚙️</Text>
+            <TouchableOpacity style={styles.iconButton} onPress={() => console.log('Settings pressed')}>
+              <Icon name="settings" size={19} color="#111827" />
             </TouchableOpacity>
           </View>
         </View>
-        <View style={styles.statusOverview}>
+
+        {/* Status Badge */}
+        <View style={styles.statusBadge}>
           <View style={styles.statusDot} />
-          <Text style={styles.statusOverviewText}>
-            {devices.length} device{devices.length !== 1 ? 's' : ''} active
+          <Text style={styles.statusBadgeText}>
+            {getActiveCount()} device{getActiveCount() !== 1 ? 's' : ''} active • {getOnlineCount()} online • {getIdleCount()} idle
           </Text>
-          <Text style={styles.statusOnline}>{getOnlineCount()} online</Text>
-          <Text style={styles.statusIdle}>{getIdleCount()} idle</Text>
         </View>
       </View>
 
@@ -440,117 +375,109 @@ const HomeScreen = ({ navigation }: any) => {
             style={styles.roomTabs}
             contentContainerStyle={styles.roomTabsContent}
           >
-            {rooms.map(room => (
-              <TouchableOpacity
-                key={room}
-                style={[
-                  styles.roomTab,
-                  selectedRoom === room && styles.roomTabActive,
-                ]}
-                onPress={() => setSelectedRoom(room)}
-              >
-                <Text
+            {rooms.map((room, index) => {
+              return (
+                <TouchableOpacity
+                  key={room}
                   style={[
-                    styles.roomTabText,
-                    selectedRoom === room && styles.roomTabTextActive,
+                    styles.roomTab,
+                    selectedRoom === room && styles.roomTabActive,
                   ]}
+                  onPress={() => setSelectedRoom(room)}
                 >
-                  {room}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.roomTabText,
+                      selectedRoom === room && styles.roomTabTextActive,
+                    ]}
+                  >
+                    {room}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
 
         {devices.length === 0 ? (
           // Empty State
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🏠</Text>
             <Text style={styles.emptyTitle}>No devices found</Text>
             <Text style={styles.emptySubtitle}>Tap "Add Device" to connect your first ESP32 device</Text>
           </View>
         ) : (
           <>
+            {/* Devices Section Header */}
+            <View style={styles.devicesSectionHeader}>
+              <Text style={styles.devicesSectionTitle}>DEVICES</Text>
+              <TouchableOpacity onPress={() => Alert.alert('Manage', 'Device management options')}>
+                <Text style={styles.devicesSectionManage}>Manage</Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Device Grid */}
             <View style={styles.deviceGrid}>
               {devices.map(device => (
                 <TouchableOpacity
                   key={device.id}
                   style={[
-                    styles.deviceGridCard,
-                    device.status === 'offline' && styles.deviceGridCardOffline,
-                    longPressDevice === device.id && styles.deviceGridCardPressed,
+                    styles.deviceCard,
+                    device.status === 'offline' && styles.deviceCardOffline,
                   ]}
                   onPress={() => handleDevicePress(device)}
                   onLongPress={() => handleDeviceLongPress(device)}
                   delayLongPress={500}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                 >
-                  {/* Status Indicator */}
-                  <View style={styles.deviceCardHeader}>
-                    <View style={[styles.statusDotSmall, { backgroundColor: getStatusColor(device.status) }]} />
-                    <Text style={styles.deviceStatusText}>{device.status}</Text>
+                  {/* Device Icon - Top */}
+                  <View style={styles.deviceCardIconContainer}>
+                    <Icon name="smartphone" size={28} color="#3B82F6" />
                   </View>
 
-                  {/* Device Icon */}
-                  <Text style={styles.deviceGridIcon}>{getDeviceIcon(device.name)}</Text>
+                  {/* Device Info - Middle */}
+                  <View style={styles.deviceCardInfo}>
+                    <Text style={styles.deviceCardName} numberOfLines={1}>
+                      {device.name}
+                    </Text>
+                    <Text style={styles.deviceCardRoom} numberOfLines={1}>
+                      {device.ssid || 'Connected'}
+                    </Text>
+                  </View>
 
-                  {/* Device Name */}
-                  <Text style={styles.deviceGridName} numberOfLines={2}>
-                    {device.name}
-                  </Text>
-
-                  {/* Room Location */}
-                  <Text style={styles.deviceGridRoom}>
-                    {device.name}
-                  </Text>
-
-                  {/* Status and Toggle Row */}
-                  <View style={styles.statusToggleRow}>
-                    <View style={styles.statusBadgeContainer}>
-                      <View style={[styles.statusBadgeDot, { backgroundColor: getStatusColor(device.status) }]} />
-                      <Text style={styles.statusBadgeText}>{device.status}</Text>
+                  {/* Status & Toggle - Bottom */}
+                  <View style={styles.deviceCardFooter}>
+                    <View style={styles.deviceCardStatus}>
+                      <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(device.status) }]} />
+                      <Text style={styles.deviceCardStatusText}>{device.status}</Text>
                     </View>
-                    <View style={styles.toggleContainer}>
-                      <Switch
-                        value={getDeviceToggleState(device)}
-                        onValueChange={() => handleToggleDevice(device)}
-                        disabled={togglingDevice === device.id || device.status !== 'online'}
-                        trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
-                        thumbColor={getDeviceToggleState(device) ? '#10B981' : '#9CA3AF'}
-                      />
-                    </View>
+                    <Switch
+                      value={getDeviceToggleState(device)}
+                      onValueChange={() => handleToggleDevice(device)}
+                      disabled={togglingDevice === device.id || device.status !== 'online'}
+                      trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
+                      thumbColor={getDeviceToggleState(device) ? '#10B981' : '#9CA3AF'}
+                    />
                   </View>
                 </TouchableOpacity>
               ))}
-
-              {/* Add Device Card */}
-              <TouchableOpacity
-                style={styles.addDeviceCard}
-                onPress={handleAddDevice}
-                activeOpacity={0.8}
-              >
-                <View style={styles.addDeviceIconCircle}>
-                  <Text style={styles.addDeviceIconPlus}>+</Text>
-                </View>
-                <Text style={styles.addDeviceText}>Add Device</Text>
-                <Text style={styles.addDeviceSubtext}>Connect Zigbee or WiFi</Text>
-              </TouchableOpacity>
             </View>
+
+            {/* Energy Usage Section - Only show if we have real data */}
+            {/* Currently hidden as we only show real MQTT data */}
 
             {/* Recent Activity Section */}
             {activityLog.length > 0 && (
               <View style={styles.activitySection}>
-                <View style={styles.activityHeaderRow}>
+                <View style={styles.activityHeader}>
                   <Text style={styles.activityTitle}>Recent Activity</Text>
                   <TouchableOpacity onPress={() => Alert.alert('Activity', 'View all activities')}>
                     <Text style={styles.activitySeeAll}>See all</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.activityList}>
-                  {activityLog.map(log => (
-                    <View key={log.id} style={styles.activityItem}>
-                      <View style={styles.activityItemLeft}>
+                  {activityLog.map((log, index) => (
+                    <View key={log.id} style={[styles.activityItem, index !== activityLog.length - 1 && styles.activityItemBorder]}>
+                      <View style={styles.activityItemContent}>
                         <Text style={styles.activityDeviceName}>{log.deviceName}</Text>
                         <Text style={styles.activityAction}>{log.action}</Text>
                       </View>
@@ -563,17 +490,17 @@ const HomeScreen = ({ navigation }: any) => {
           </>
         )}
 
-        {/* Bottom spacing for FAB */}
+        {/* Bottom Spacing */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Floating Action Button - Above Nav Bar */}
+      {/* Add Device Button - Floating Above Nav */}
       <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 70 }]}
+        style={[styles.addDeviceButton, { bottom: insets.bottom + 16 }]}
         onPress={handleAddDevice}
         activeOpacity={0.8}
       >
-        <Text style={styles.fabIcon}>+</Text>
+        <Text style={styles.addDeviceButtonText}>+</Text>
       </TouchableOpacity>
 
       {/* Bottom Navigation Bar */}
@@ -583,34 +510,34 @@ const HomeScreen = ({ navigation }: any) => {
           onPress={() => console.log('Home pressed')}
           activeOpacity={0.7}
         >
-          <Text style={styles.navIcon}>🏠</Text>
+          <Icon name="home" size={24} color="#3B82F6" />
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => navigation.navigate('Devices')}
+          onPress={() => handleAddDevice()}
           activeOpacity={0.7}
         >
-          <Text style={styles.navIcon}>💻</Text>
-          <Text style={styles.navLabel}>Devices</Text>
+          <Icon name="plus" size={24} color="#666666" />
+          <Text style={styles.navLabel}>Add</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => navigation.navigate('MetricsScreen')}
+          onPress={() => console.log('Activity pressed')}
           activeOpacity={0.7}
         >
-          <Text style={styles.navIcon}>�</Text>
+          <Icon name="bar-chart-2" size={24} color="#666666" />
           <Text style={styles.navLabel}>Stats</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => navigation.navigate('Profile')}
+          onPress={() => console.log('Settings pressed')}
           activeOpacity={0.7}
         >
-          <Text style={styles.navIcon}>�</Text>
+          <Icon name="user" size={24} color="#666666" />
           <Text style={styles.navLabel}>Profile</Text>
         </TouchableOpacity>
       </View>
@@ -640,23 +567,26 @@ const HomeScreen = ({ navigation }: any) => {
                 setNewDeviceName(selectedDevice?.name || '');
               }}
             >
-              <Text style={styles.menuItemIcon}>✏️</Text>
               <Text style={styles.menuItemText}>Rename Device</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={handleReconfigureWiFi}
+              onPress={() => {
+                setShowDeviceMenu(false);
+                Alert.alert('WiFi Reconfiguration', 'Coming soon');
+              }}
             >
-              <Text style={styles.menuItemIcon}>📶</Text>
               <Text style={styles.menuItemText}>Reconfigure WiFi</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={handleRestartDevice}
+              onPress={() => {
+                setShowDeviceMenu(false);
+                Alert.alert('Restart Device', 'Device restart command sent');
+              }}
             >
-              <Text style={styles.menuItemIcon}>🔄</Text>
               <Text style={styles.menuItemText}>Restart Device</Text>
             </TouchableOpacity>
 
@@ -664,7 +594,6 @@ const HomeScreen = ({ navigation }: any) => {
               style={[styles.menuItem, styles.menuItemDanger]}
               onPress={handleRemoveDevice}
             >
-              <Text style={styles.menuItemIcon}>🗑️</Text>
               <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Remove Device</Text>
             </TouchableOpacity>
 
@@ -727,103 +656,107 @@ const HomeScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F6F7FB',
+    backgroundColor: '#F4F7FB',
   },
 
   // Header
   header: {
-    flexDirection: 'column',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingTop: 20,
+    gap: 4,
   },
 
-  greetingRow: {
-    marginBottom: 8,
+  greetingContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 4,
   },
 
-  headerContent: {
+  greetingIcon: {
+    fontSize: 24,
+    marginTop: 2,
+  },
+
+  greetingTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+
+  greetingText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#9CA3AF',
+  },
+
+  greetingSubtitle: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#B4B8C1',
+    lineHeight: 16,
+  },
+
+  headerTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-
-  headerLeft: {
-    flex: 1,
-  },
-
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-
-  notificationButtonBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-    position: 'relative',
-  },
-
-  notificationIcon: {
-    fontSize: 20,
-  },
-
-  notificationBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#EF4444',
-  },
-
-  greeting: {
-    fontSize: 13,
-    color: '#999999',
-    marginBottom: 4,
-    fontWeight: '400',
+    gap: 16,
+    marginTop: 4,
   },
 
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 0,
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -1,
+    flexShrink: 1,
   },
 
-  statusOverview: {
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexShrink: 0,
+  },
+
+  iconButton: {
+    width: 39,
+    height: 39,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+  },
+
+  notificationDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#3B82F6',
+  },
+
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#E0F2FE',
+    backgroundColor: '#E8F5E9',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 20,
     alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
   },
 
   statusDot: {
@@ -833,54 +766,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
 
-  statusOverviewText: {
+  statusBadgeText: {
     fontSize: 12,
-    color: '#0369A1',
+    color: '#059669',
     fontWeight: '600',
-  },
-
-  statusOnline: {
-    fontSize: 12,
-    color: '#0369A1',
-    fontWeight: '600',
-  },
-
-  statusIdle: {
-    fontSize: 12,
-    color: '#0369A1',
-    fontWeight: '600',
-  },
-
-  settingsButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-
-  settingsButtonBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-
-  settingsIcon: {
-    fontSize: 20,
   },
 
   // Scroll View
@@ -900,26 +789,28 @@ const styles = StyleSheet.create({
 
   roomTabsContent: {
     gap: 8,
-    paddingHorizontal: 0,
   },
 
   roomTab: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.7)',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
 
   roomTabActive: {
     backgroundColor: '#3B82F6',
     borderColor: '#3B82F6',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
 
   roomTabText: {
@@ -934,7 +825,6 @@ const styles = StyleSheet.create({
 
   // Empty State
   emptyContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 100,
@@ -959,6 +849,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
+  // Devices Section Header
+  devicesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+
+  devicesSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#D1D5DB',
+    letterSpacing: 1,
+  },
+
+  devicesSectionManage: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+
   // Device Grid
   deviceGrid: {
     flexDirection: 'row',
@@ -969,183 +882,76 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 
-  deviceGridCard: {
+  deviceCard: {
     width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 24,
+    padding: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 12,
+    elevation: 6,
+    justifyContent: 'space-between',
+    minHeight: 200,
   },
 
-  deviceGridCardOffline: {
+  deviceCardOffline: {
     opacity: 0.5,
   },
 
-  deviceGridCardPressed: {
-    transform: [{ scale: 0.95 }],
-  },
-
-  deviceCardHeader: {
-    flexDirection: 'row',
+  deviceCardIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
+    marginBottom: 12,
   },
 
-  statusDotSmall: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  deviceCardInfo: {
+    flex: 1,
+    gap: 4,
+    marginBottom: 12,
   },
 
-  deviceStatusText: {
-    fontSize: 10,
-    color: '#666666',
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-
-  deviceGridIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-
-  deviceGridName: {
-    fontSize: 14,
+  deviceCardName: {
+    fontSize: 15,
     fontWeight: '700',
-    color: '#000000',
-    marginBottom: 4,
-    height: 36,
+    color: '#111827',
   },
 
-  deviceGridStatus: {
+  deviceCardRoom: {
     fontSize: 12,
-    color: '#666666',
-    marginBottom: 10,
     fontWeight: '500',
+    color: '#9CA3AF',
   },
 
-  deviceGridRoom: {
-    fontSize: 12,
-    color: '#999999',
-    marginBottom: 8,
-    fontWeight: '400',
+  deviceCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
   },
 
-  statusBadgeContainer: {
+  deviceCardStatus: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 0,
   },
 
-  statusBadgeDot: {
+  statusIndicator: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
 
-  statusBadgeText: {
+  deviceCardStatusText: {
     fontSize: 11,
-    color: '#666666',
-    fontWeight: '500',
-    textTransform: 'capitalize',
-  },
-
-  statusToggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-
-  toggleContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Add Device Card
-  addDeviceCard: {
-    width: '48%',
-    backgroundColor: '#F0F7FF',
-    borderRadius: 16,
-    padding: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#D0E8FF',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-
-  addDeviceIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-
-  addDeviceIconPlus: {
-    fontSize: 28,
-    color: '#FFFFFF',
-    fontWeight: '300',
-  },
-
-  addDeviceText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-
-  addDeviceSubtext: {
-    fontSize: 11,
-    color: '#999999',
-    fontWeight: '400',
-    textAlign: 'center',
-  },
-
-  // Activity Section
-  activitySection: {
-    marginHorizontal: 16,
-    marginVertical: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-
-  activityHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-
-  activityTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#000000',
-  },
-
-  activitySeeAll: {
-    fontSize: 13,
     fontWeight: '600',
-    color: '#3B82F6',
+    color: '#666666',
+    textTransform: 'capitalize',
   },
 
   // Energy Section
@@ -1162,27 +968,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  energyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-
   energyTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#000000',
-  },
-
-  energyValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#3B82F6',
-  },
-
-  energyProgressContainer: {
-    gap: 8,
+    marginBottom: 12,
   },
 
   energyProgressBar: {
@@ -1190,6 +980,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
     borderRadius: 4,
     overflow: 'hidden',
+    marginBottom: 8,
   },
 
   energyProgressFill: {
@@ -1209,8 +1000,41 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+  // Activity Section
+  activitySection: {
+    marginHorizontal: 16,
+    marginVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  activityTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000000',
+  },
+
+  activitySeeAll: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+
   activityList: {
-    gap: 12,
+    gap: 0,
   },
 
   activityItem: {
@@ -1218,11 +1042,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 10,
+  },
+
+  activityItemBorder: {
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
 
-  activityItemLeft: {
+  activityItemContent: {
     flex: 1,
   },
 
@@ -1244,49 +1071,49 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
 
-  // FAB
-  fab: {
+  // Add Device Button
+  addDeviceButton: {
     position: 'absolute',
-    bottom: 70,
     right: 16,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowRadius: 8,
+    elevation: 4,
   },
 
-  fabIcon: {
-    color: '#FFFFFF',
+  addDeviceButtonText: {
     fontSize: 28,
-    fontWeight: '300',
+    fontWeight: '600',
+    color: '#FFFFFF',
+    lineHeight: 28,
   },
 
   // Bottom Navigation Bar
   bottomNav: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 16,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    paddingTop: 8,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 30,
+    paddingTop: 12,
     paddingHorizontal: 16,
+    paddingVertical: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 12,
   },
 
   navItem: {
@@ -1294,15 +1121,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
+    gap: 4,
   },
 
   navIcon: {
-    fontSize: 22,
-    marginBottom: 3,
+    fontSize: 20,
+    marginBottom: 2,
   },
 
   navLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '500',
     color: '#666666',
   },
