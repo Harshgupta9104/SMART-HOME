@@ -68,7 +68,6 @@ const WiFiSelector: React.FC<WiFiSelectorProps> = ({
           style={styles.selector}
           onPress={() => setShowPicker(true)}
         >
-          <Text style={styles.selectorIcon}>📶</Text>
           <Text style={styles.selectorText}>
             {selectedSSID || 'Select a network'}
           </Text>
@@ -140,8 +139,6 @@ const WiFiSelector: React.FC<WiFiSelectorProps> = ({
                       ]}
                       onPress={() => handleSelectNetwork(item.ssid)}
                     >
-                      <Text style={styles.lockIcon}>🔒</Text>
-                      
                       <View style={styles.networkTextContainer}>
                         <Text style={styles.networkSSID} numberOfLines={1}>
                           {item.ssid}

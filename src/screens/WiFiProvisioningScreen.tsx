@@ -377,7 +377,6 @@ const WiFiProvisioningScreen = ({ navigation, route }: any) => {
 
         <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
           <View style={styles.locationDisabledContainer}>
-            <Text style={styles.locationIcon}>📍</Text>
             <Text style={styles.locationTitle}>Location Services Disabled</Text>
             <Text style={styles.locationMessage}>
               Android requires Location Services to be enabled for WiFi network discovery.

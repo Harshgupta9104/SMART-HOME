@@ -233,7 +233,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
           >
             <View style={styles.deviceIcon}>
-              <Text style={styles.deviceIconText}>⚙️</Text>
+              <Text style={styles.deviceIconText}>Device</Text>
             </View>
 
             <View style={styles.deviceInfo}>

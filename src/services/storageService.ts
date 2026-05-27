@@ -3,7 +3,8 @@ import * as Keychain from 'react-native-keychain';
 
 export interface ProvisionedDevice {
   id: string;
-  name: string;
+  name: string; // Internal provisioning ID (e.g., PROV_26B7B3F8)
+  displayName?: string; // User-friendly display name (e.g., "Living Room Hub")
   macAddress: string;
   mqttDeviceId?: string; // ✅ MQTT device ID for topic usage
   ssid: string;

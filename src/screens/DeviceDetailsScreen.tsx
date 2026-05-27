@@ -77,7 +77,6 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
 
         {/* Notification Bell Icon */}
         <TouchableOpacity style={styles.notificationBtn}>
-          <Text style={styles.notificationIcon}>🔔</Text>
         </TouchableOpacity>
       </View>
 
@@ -109,21 +108,21 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
       >
         <Tab.Screen
           name="Metrics"
-          options={{ tabBarLabel: '📊  Metrics' }}
+          options={{ tabBarLabel: 'Metrics' }}
         >
           {() => <MetricsTab device={device} />}
         </Tab.Screen>
 
         <Tab.Screen
           name="Controller"
-          options={{ tabBarLabel: '💡  Controller' }}
+          options={{ tabBarLabel: 'Controller' }}
         >
           {() => <ControllerTab device={device} />}
         </Tab.Screen>
 
         <Tab.Screen
           name="Settings"
-          options={{ tabBarLabel: '⚙️  Settings' }}
+          options={{ tabBarLabel: 'Settings' }}
         >
           {() => <SettingsTab device={device} onDeviceRemoved={handleDeviceRemoved} />}
         </Tab.Screen>

@@ -153,7 +153,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
             {/* Relay circle */}
             <View style={[styles.relayCircle, relayStatus && styles.relayCircleOn]}>
               <Text style={[styles.relayIcon, relayStatus && styles.relayIconOn]}>
-                {isUpdatingRelay ? '⏳' : '💡'}
+                {isUpdatingRelay ? 'Updating...' : 'Relay'}
               </Text>
             </View>
           </TouchableOpacity>

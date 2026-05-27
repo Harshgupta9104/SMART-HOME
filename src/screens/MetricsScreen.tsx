@@ -18,14 +18,14 @@ const getPlantState = (moisture: number | undefined) => {
   if (moisture === undefined)
     return { label: 'Waiting...', color: '#9CA3AF', bg: '#F9FAFB', ringColor: '#E5E7EB', icon: '🌿' };
   if (moisture < 20)
-    return { label: 'Desert Dry', color: '#DC2626', bg: '#FEF2F2', ringColor: '#FCA5A5', icon: '🏜️' };
+    return { label: 'Desert Dry', color: '#DC2626', bg: '#FEF2F2', ringColor: '#FCA5A5' };
   if (moisture < 40)
-    return { label: 'Dry', color: '#F59E0B', bg: '#FFFBEB', ringColor: '#FCD34D', icon: '🌵' };
+    return { label: 'Dry', color: '#F59E0B', bg: '#FFFBEB', ringColor: '#FCD34D' };
   if (moisture < 70)
-    return { label: 'Healthy', color: '#10B981', bg: '#F0FDF4', ringColor: '#6EE7B7', icon: '🌱' };
+    return { label: 'Healthy', color: '#10B981', bg: '#F0FDF4', ringColor: '#6EE7B7' };
   if (moisture < 90)
-    return { label: 'Wet', color: '#3B82F6', bg: '#EFF6FF', ringColor: '#93C5FD', icon: '💧' };
-  return { label: 'Saturated', color: '#6366F1', bg: '#EEF2FF', ringColor: '#A5B4FC', icon: '🌊' };
+    return { label: 'Wet', color: '#3B82F6', bg: '#EFF6FF', ringColor: '#93C5FD' };
+  return { label: 'Saturated', color: '#6366F1', bg: '#EEF2FF', ringColor: '#A5B4FC' };
 };
 
 const getSignalLabel = (rssi: number | undefined) => {
@@ -257,7 +257,6 @@ const MetricsScreen: React.FC<MetricsScreenProps> = ({ device }) => {
       {/* ── SECONDARY STAT CARDS ──────────────────────────────────── */}
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
-          <Text style={styles.statIcon}>📶</Text>
           <Text style={styles.statValue}>
             {metrics?.wifiRSSI !== undefined ? `${metrics.wifiRSSI}` : '—'}
           </Text>
@@ -267,7 +266,6 @@ const MetricsScreen: React.FC<MetricsScreenProps> = ({ device }) => {
         </View>
 
         <View style={styles.statCard}>
-          <Text style={styles.statIcon}>🌡️</Text>
           <Text style={styles.statValue}>
             {metrics?.temperature !== undefined ? `${metrics.temperature}` : '—'}
           </Text>

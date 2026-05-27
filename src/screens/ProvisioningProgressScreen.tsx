@@ -202,17 +202,17 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
           }),
         ]).start();
 
-        // Navigate after 1.5 seconds
+        // Navigate to device naming screen after 1.5 seconds
         setTimeout(() => {
           navigation.reset({
             index: 0,
             routes: [
               {
-                name: 'HomeMain',
+                name: 'DeviceNaming',
                 params: {
-                  justProvisioned: true,
                   deviceId: deviceId,
                   deviceName: deviceName,
+                  selectedRoom: 'All rooms',
                 },
               },
             ],

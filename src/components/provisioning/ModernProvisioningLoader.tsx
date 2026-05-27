@@ -72,7 +72,7 @@ const ModernProvisioningLoader: React.FC<ModernProvisioningLoaderProps> = ({
           },
         ]}
       >
-        <Text style={styles.deviceIcon}>📱</Text>
+        <Text style={styles.deviceText}>Loading...</Text>
       </Animated.View>
 
       {/* Animated Loader Ring */}

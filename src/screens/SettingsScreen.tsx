@@ -215,7 +215,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ device, onDeviceRemoved
 
           {/* Selected network */}
           <View style={styles.selectedNetworkRow}>
-            <Text style={styles.selectedNetworkIcon}>📶</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.selectedNetworkName}>{selectedNetwork?.ssid}</Text>
               <Text style={styles.selectedNetworkSub}>Enter the WiFi password below</Text>
@@ -303,7 +302,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ device, onDeviceRemoved
           }}
           activeOpacity={0.7}
         >
-          <Text style={styles.manualEntryIcon}>✏️</Text>
           <Text style={styles.manualEntryText}>Enter network name manually</Text>
         </TouchableOpacity>
       </>
@@ -382,7 +380,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ device, onDeviceRemoved
                 onPress={openWifiModal}
                 activeOpacity={0.7}
               >
-                <Text style={styles.editBtnIcon}>✏️</Text>
+                <Text style={styles.editBtnText}>Edit</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -404,17 +402,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ device, onDeviceRemoved
             <Text style={styles.dangerSubtitle}>These actions cannot be undone easily.</Text>
 
             <TouchableOpacity style={styles.dangerButton} onPress={handleRestartDevice} activeOpacity={0.7}>
-              <Text style={styles.dangerButtonIcon}>🔄</Text>
               <Text style={styles.dangerButtonText}>Restart Device</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.dangerButton} onPress={handleResetWiFi} activeOpacity={0.7}>
-              <Text style={styles.dangerButtonIcon}>📶</Text>
               <Text style={styles.dangerButtonText}>Reset WiFi Configuration</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.dangerButton, styles.deleteButton]} onPress={handleRemoveDevice} activeOpacity={0.7}>
-              <Text style={styles.dangerButtonIcon}>🗑️</Text>
               <Text style={styles.deleteButtonText}>Remove Device</Text>
             </TouchableOpacity>
           </View>

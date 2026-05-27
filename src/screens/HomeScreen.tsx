@@ -150,7 +150,7 @@ const HomeScreen = ({ navigation }: any) => {
           ? `LED turned ${!metrics.ledStatus ? 'ON' : 'OFF'}`
           : `Device turned ${!metrics.relayStatus ? 'ON' : 'OFF'}`;
         
-        addActivityLog(device.name, action);
+        addActivityLog(device, action);
       } else {
         Alert.alert('Error', 'Failed to control device');
       }
@@ -162,10 +162,10 @@ const HomeScreen = ({ navigation }: any) => {
     }
   };
 
-  const addActivityLog = (deviceName: string, action: string) => {
+  const addActivityLog = (device: ProvisionedDevice, action: string) => {
     const newLog: ActivityLog = {
       id: Date.now().toString(),
-      deviceName,
+      deviceName: device.displayName || device.name,
       action,
       timestamp: Date.now(),
     };
@@ -350,12 +350,20 @@ const HomeScreen = ({ navigation }: any) => {
           </View>
         </View>
 
-        {/* Status Badge */}
-        <View style={styles.statusBadge}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusBadgeText}>
-            {getActiveCount()} device{getActiveCount() !== 1 ? 's' : ''} active • {getOnlineCount()} online • {getIdleCount()} idle
-          </Text>
+        {/* Status Chips */}
+        <View style={styles.statusChipsRow}>
+          <View style={[styles.statusChip, styles.statusChipActive]}>
+            <View style={[styles.statusChipDot, { backgroundColor: '#10B981' }]} />
+            <Text style={styles.statusChipText}>{getActiveCount()} Active</Text>
+          </View>
+          <View style={[styles.statusChip, styles.statusChipOnline]}>
+            <View style={[styles.statusChipDot, { backgroundColor: '#3B82F6' }]} />
+            <Text style={styles.statusChipText}>{getOnlineCount()} Online</Text>
+          </View>
+          <View style={[styles.statusChip, styles.statusChipIdle]}>
+            <View style={[styles.statusChipDot, { backgroundColor: '#D1D5DB' }]} />
+            <Text style={styles.statusChipText}>{getIdleCount()} Idle</Text>
+          </View>
         </View>
       </View>
 
@@ -437,10 +445,10 @@ const HomeScreen = ({ navigation }: any) => {
                   {/* Device Info - Middle */}
                   <View style={styles.deviceCardInfo}>
                     <Text style={styles.deviceCardName} numberOfLines={1}>
-                      {device.name}
+                      {device.displayName || device.name}
                     </Text>
                     <Text style={styles.deviceCardRoom} numberOfLines={1}>
-                      {device.ssid || 'Connected'}
+                      Connected
                     </Text>
                   </View>
 
@@ -465,18 +473,21 @@ const HomeScreen = ({ navigation }: any) => {
             {/* Energy Usage Section - Only show if we have real data */}
             {/* Currently hidden as we only show real MQTT data */}
 
-            {/* Recent Activity Section */}
-            {activityLog.length > 0 && (
-              <View style={styles.activitySection}>
-                <View style={styles.activityHeader}>
-                  <Text style={styles.activityTitle}>Recent Activity</Text>
+            {/* Live Activity Section */}
+            <View style={styles.activitySection}>
+              <View style={styles.activityHeader}>
+                <Text style={styles.activityTitle}>Live Activity</Text>
+                {activityLog.length > 0 && (
                   <TouchableOpacity onPress={() => Alert.alert('Activity', 'View all activities')}>
                     <Text style={styles.activitySeeAll}>See all</Text>
                   </TouchableOpacity>
-                </View>
+                )}
+              </View>
+              {activityLog.length > 0 ? (
                 <View style={styles.activityList}>
                   {activityLog.map((log, index) => (
                     <View key={log.id} style={[styles.activityItem, index !== activityLog.length - 1 && styles.activityItemBorder]}>
+                      <View style={styles.activityItemDot} />
                       <View style={styles.activityItemContent}>
                         <Text style={styles.activityDeviceName}>{log.deviceName}</Text>
                         <Text style={styles.activityAction}>{log.action}</Text>
@@ -485,8 +496,13 @@ const HomeScreen = ({ navigation }: any) => {
                     </View>
                   ))}
                 </View>
-              </View>
-            )}
+              ) : (
+                <View style={styles.activityEmpty}>
+                  <Text style={styles.activityEmptyText}>No activity yet</Text>
+                  <Text style={styles.activityEmptySubtext}>Device events will appear here</Text>
+                </View>
+              )}
+            </View>
           </>
         )}
 
@@ -494,50 +510,34 @@ const HomeScreen = ({ navigation }: any) => {
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Add Device Button - Floating Above Nav */}
-      <TouchableOpacity
-        style={[styles.addDeviceButton, { bottom: insets.bottom + 16 }]}
-        onPress={handleAddDevice}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.addDeviceButtonText}>+</Text>
-      </TouchableOpacity>
-
       {/* Bottom Navigation Bar */}
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
         <TouchableOpacity
           style={styles.navItem}
           onPress={() => console.log('Home pressed')}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
         >
-          <Icon name="home" size={24} color="#3B82F6" />
+          <Icon name="home" size={18} color="#3B82F6" />
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.navItem}
+          style={[styles.navItem, styles.navItemAdd]}
           onPress={() => handleAddDevice()}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
         >
-          <Icon name="plus" size={24} color="#666666" />
-          <Text style={styles.navLabel}>Add</Text>
+          <View style={styles.addTabBackground}>
+            <Icon name="plus" size={18} color="#3B82F6" />
+            <Text style={styles.navLabel}>Add</Text>
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => console.log('Activity pressed')}
-          activeOpacity={0.7}
+          onPress={() => console.log('Profile pressed')}
+          activeOpacity={0.6}
         >
-          <Icon name="bar-chart-2" size={24} color="#666666" />
-          <Text style={styles.navLabel}>Stats</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => console.log('Settings pressed')}
-          activeOpacity={0.7}
-        >
-          <Icon name="user" size={24} color="#666666" />
+          <Icon name="user" size={18} color="#9CA3AF" />
           <Text style={styles.navLabel}>Profile</Text>
         </TouchableOpacity>
       </View>
@@ -721,8 +721,8 @@ const styles = StyleSheet.create({
   },
 
   iconButton: {
-    width: 39,
-    height: 39,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
@@ -759,6 +759,49 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(16, 185, 129, 0.2)',
   },
 
+  statusChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+
+  statusChipActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+  },
+
+  statusChipOnline: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderColor: 'rgba(59, 130, 246, 0.2)',
+  },
+
+  statusChipIdle: {
+    backgroundColor: 'rgba(209, 213, 219, 0.1)',
+    borderColor: 'rgba(209, 213, 219, 0.2)',
+  },
+
+  statusChipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+
+  statusChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+
   statusDot: {
     width: 8,
     height: 8,
@@ -792,20 +835,20 @@ const styles = StyleSheet.create({
   },
 
   roomTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.6)',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
 
   roomTabActive: {
@@ -814,7 +857,7 @@ const styles = StyleSheet.create({
   },
 
   roomTabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#666666',
   },
@@ -1004,14 +1047,14 @@ const styles = StyleSheet.create({
   activitySection: {
     marginHorizontal: 16,
     marginVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 20,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 12,
+    elevation: 4,
   },
 
   activityHeader: {
@@ -1024,7 +1067,7 @@ const styles = StyleSheet.create({
   activityTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000000',
+    color: '#111827',
   },
 
   activitySeeAll: {
@@ -1039,9 +1082,9 @@ const styles = StyleSheet.create({
 
   activityItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+    gap: 10,
   },
 
   activityItemBorder: {
@@ -1049,26 +1092,49 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F3F4F6',
   },
 
+  activityItemDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#3B82F6',
+  },
+
   activityItemContent: {
     flex: 1,
+    gap: 2,
   },
 
   activityDeviceName: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#000000',
-    marginBottom: 2,
+    color: '#111827',
   },
 
   activityAction: {
     fontSize: 12,
-    color: '#666666',
+    color: '#6B7280',
   },
 
   activityTime: {
     fontSize: 11,
-    color: '#999999',
-    marginLeft: 12,
+    color: '#9CA3AF',
+  },
+
+  activityEmpty: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  activityEmptyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+
+  activityEmptySubtext: {
+    fontSize: 12,
+    color: '#D1D5DB',
   },
 
   // Add Device Button
@@ -1104,35 +1170,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 30,
-    paddingTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 16,
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
   },
 
   navItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    gap: 4,
+    paddingVertical: 6,
+    gap: 3,
   },
 
-  navIcon: {
-    fontSize: 20,
-    marginBottom: 2,
+  navItemAdd: {
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+
+  addTabBackground: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.15)',
+    marginTop: -9,
   },
 
   navLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#666666',
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#6B7280',
   },
 
   // Bottom Spacing

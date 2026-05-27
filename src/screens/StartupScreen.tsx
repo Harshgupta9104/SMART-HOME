@@ -136,7 +136,7 @@ const StartupScreen = ({ navigation, route }: any) => {
               },
             ]}
           >
-            <Text style={styles.logo}>🏠</Text>
+            <Text style={styles.logoText}>SmartHome</Text>
           </Animated.View>
 
           {/* Title and Subtitle */}
@@ -207,7 +207,7 @@ const StartupScreen = ({ navigation, route }: any) => {
             {/* Location */}
             <View style={styles.permissionItem}>
               <View style={styles.permissionIcon}>
-                <Text style={styles.permissionIconText}>📍</Text>
+                <Text style={styles.permissionIconText}>Location</Text>
               </View>
               <View style={styles.permissionTextContainer}>
                 <Text style={styles.permissionItemTitle}>Location Access</Text>
@@ -220,7 +220,7 @@ const StartupScreen = ({ navigation, route }: any) => {
             {/* Notifications */}
             <View style={styles.permissionItem}>
               <View style={styles.permissionIcon}>
-                <Text style={styles.permissionIconText}>🔔</Text>
+                <Text style={styles.permissionIconText}>Notifications</Text>
               </View>
               <View style={styles.permissionTextContainer}>
                 <Text style={styles.permissionItemTitle}>Notifications</Text>

@@ -42,7 +42,7 @@ function App() {
           clientId: `smartapp-${Date.now()}_${Math.random().toString(16).slice(3)}`,
         };
 
-        console.log('[App] 🔌 Connecting to HiveMQ...');
+        console.log('[App] Connecting to HiveMQ...');
         const connected = await mqttService.connect(mqttConfig);
 
         if (connected) {

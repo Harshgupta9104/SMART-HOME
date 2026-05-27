@@ -117,7 +117,7 @@ const ProvisioningSuccessScreen: React.FC<ProvisioningSuccessScreenProps> = ({
 
         {/* Device Illustration */}
         <View style={styles.illustrationContainer}>
-          <Text style={styles.illustration}>📱</Text>
+          <Text style={styles.illustrationText}>Success</Text>
         </View>
 
         {/* Info Box */}
