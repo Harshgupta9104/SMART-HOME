@@ -11,7 +11,6 @@ import {
   TextInput,
   Alert,
   Animated,
-  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -37,7 +36,6 @@ const HomeScreen = ({ navigation }: any) => {
   const [selectedRoom, setSelectedRoom] = useState<string>('All rooms');
   const [deviceMetrics, setDeviceMetrics] = useState<Map<string, DeviceMetrics>>(new Map());
   const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
-  const [togglingDevice, setTogglingDevice] = useState<string | null>(null);
 
   // Entry animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -130,8 +128,6 @@ const HomeScreen = ({ navigation }: any) => {
       Alert.alert('Error', 'Device metrics not available');
       return;
     }
-
-    setTogglingDevice(device.id);
     
     try {
       const deviceNameLower = device.name.toLowerCase();
@@ -157,8 +153,6 @@ const HomeScreen = ({ navigation }: any) => {
     } catch (error) {
       console.error('[HomeScreen] Error toggling device:', error);
       Alert.alert('Error', 'Failed to control device');
-    } finally {
-      setTogglingDevice(null);
     }
   };
 
@@ -275,18 +269,9 @@ const HomeScreen = ({ navigation }: any) => {
     return greeting;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online':
-        return '#10B981';
-      case 'offline':
-        return '#EF4444';
-      case 'connecting':
-        return '#F59E0B';
-      default:
-        return '#9CA3AF';
-    }
-  };
+  const getOnlineCount = () => devices.filter(d => d.status === 'online').length;
+  const getIdleCount = () => devices.filter(d => d.status === 'offline').length;
+  const getActiveCount = () => devices.filter(d => d.status === 'online').length;
 
   const getDeviceToggleState = (device: ProvisionedDevice): boolean => {
     const mqttDeviceId = device.mqttDeviceId || device.id;
@@ -303,10 +288,6 @@ const HomeScreen = ({ navigation }: any) => {
     
     return false;
   };
-
-  const getOnlineCount = () => devices.filter(d => d.status === 'online').length;
-  const getIdleCount = () => devices.filter(d => d.status === 'offline').length;
-  const getActiveCount = () => devices.filter(d => d.status === 'online').length;
 
   // Cleanup on unmount
   useEffect(() => {
@@ -425,49 +406,70 @@ const HomeScreen = ({ navigation }: any) => {
 
             {/* Device Grid */}
             <View style={styles.deviceGrid}>
-              {devices.map(device => (
-                <TouchableOpacity
-                  key={device.id}
-                  style={[
-                    styles.deviceCard,
-                    device.status === 'offline' && styles.deviceCardOffline,
-                  ]}
-                  onPress={() => handleDevicePress(device)}
-                  onLongPress={() => handleDeviceLongPress(device)}
-                  delayLongPress={500}
-                  activeOpacity={0.85}
-                >
-                  {/* Device Icon - Top */}
-                  <View style={styles.deviceCardIconContainer}>
-                    <Icon name="smartphone" size={28} color="#3B82F6" />
-                  </View>
-
-                  {/* Device Info - Middle */}
-                  <View style={styles.deviceCardInfo}>
-                    <Text style={styles.deviceCardName} numberOfLines={1}>
-                      {device.displayName || device.name}
-                    </Text>
-                    <Text style={styles.deviceCardRoom} numberOfLines={1}>
-                      Connected
-                    </Text>
-                  </View>
-
-                  {/* Status & Toggle - Bottom */}
-                  <View style={styles.deviceCardFooter}>
-                    <View style={styles.deviceCardStatus}>
-                      <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(device.status) }]} />
-                      <Text style={styles.deviceCardStatusText}>{device.status}</Text>
+              {devices.map(device => {
+                const isOnline = device.status === 'online';
+                const isOn = getDeviceToggleState(device);
+                const mqttDeviceId = device.mqttDeviceId || device.id;
+                
+                return (
+                  <TouchableOpacity
+                    key={device.id}
+                    style={[
+                      styles.deviceCard,
+                      isOnline && isOn && styles.deviceCardActive,
+                      isOnline && !isOn && styles.deviceCardInactive,
+                      !isOnline && styles.deviceCardOffline,
+                    ]}
+                    onPress={() => handleToggleDevice(device)}
+                    onLongPress={() => handleDeviceLongPress(device)}
+                    delayLongPress={500}
+                    activeOpacity={0.9}
+                  >
+                    {/* Device Icon - Top */}
+                    <View style={[
+                      styles.deviceCardIconContainer,
+                      isOnline && isOn && styles.deviceCardIconContainerActive,
+                      isOnline && !isOn && styles.deviceCardIconContainerInactive,
+                      !isOnline && styles.deviceCardIconContainerOffline,
+                    ]}>
+                      <Icon 
+                        name="smartphone" 
+                        size={24} 
+                        color={isOnline ? (isOn ? '#007AFF' : '#9CA3AF') : '#D1D5DB'}
+                        strokeWidth={2}
+                      />
                     </View>
-                    <Switch
-                      value={getDeviceToggleState(device)}
-                      onValueChange={() => handleToggleDevice(device)}
-                      disabled={togglingDevice === device.id || device.status !== 'online'}
-                      trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
-                      thumbColor={getDeviceToggleState(device) ? '#10B981' : '#9CA3AF'}
-                    />
-                  </View>
-                </TouchableOpacity>
-              ))}
+
+                    {/* Device Info - Middle */}
+                    <View style={styles.deviceCardInfo}>
+                      <Text style={[
+                        styles.deviceCardName,
+                        !isOnline && styles.deviceCardNameOffline,
+                      ]} numberOfLines={1}>
+                        {device.displayName || device.name}
+                      </Text>
+                      <Text style={[
+                        styles.deviceCardRoom,
+                        !isOnline && styles.deviceCardRoomOffline,
+                      ]} numberOfLines={1}>
+                        {device.displayName ? 'Smart Device' : 'Device'}
+                      </Text>
+                    </View>
+
+                    {/* Status - Bottom */}
+                    <View style={styles.deviceCardFooter}>
+                      <Text style={[
+                        styles.deviceCardStateText,
+                        isOnline && isOn && styles.deviceCardStateTextOn,
+                        isOnline && !isOn && styles.deviceCardStateTextOff,
+                        !isOnline && styles.deviceCardStateTextOffline,
+                      ]}>
+                        {!isOnline ? 'Offline' : (isOn ? 'ON' : 'OFF')}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Energy Usage Section - Only show if we have real data */}
@@ -557,44 +559,72 @@ const HomeScreen = ({ navigation }: any) => {
           <View style={[styles.bottomSheet, { paddingBottom: insets.bottom }]}>
             <View style={styles.bottomSheetHandle} />
 
-            <Text style={styles.bottomSheetTitle}>Manage Device</Text>
+            <Text style={styles.bottomSheetTitle}>Device Options</Text>
 
+            {/* Rename Device */}
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
                 setShowDeviceMenu(false);
                 setShowRenameModal(true);
-                setNewDeviceName(selectedDevice?.name || '');
+                setNewDeviceName(selectedDevice?.displayName || selectedDevice?.name || '');
               }}
             >
-              <Text style={styles.menuItemText}>Rename Device</Text>
+              <View style={styles.menuItemIconContainer}>
+                <Icon name="edit-2" size={18} color="#007AFF" />
+              </View>
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemTitle}>Rename Device</Text>
+                <Text style={styles.menuItemSubtitle}>Change display name</Text>
+              </View>
             </TouchableOpacity>
 
+            {/* Move to Room */}
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
                 setShowDeviceMenu(false);
-                Alert.alert('WiFi Reconfiguration', 'Coming soon');
+                Alert.alert('Move to Room', 'Coming soon');
               }}
             >
-              <Text style={styles.menuItemText}>Reconfigure WiFi</Text>
+              <View style={styles.menuItemIconContainer}>
+                <Icon name="home" size={18} color="#007AFF" />
+              </View>
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemTitle}>Move to Room</Text>
+                <Text style={styles.menuItemSubtitle}>Living • Bedroom • Kitchen</Text>
+              </View>
             </TouchableOpacity>
 
+            {/* Device Details */}
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
                 setShowDeviceMenu(false);
-                Alert.alert('Restart Device', 'Device restart command sent');
+                handleDevicePress(selectedDevice!);
               }}
             >
-              <Text style={styles.menuItemText}>Restart Device</Text>
+              <View style={styles.menuItemIconContainer}>
+                <Icon name="info" size={18} color="#007AFF" />
+              </View>
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemTitle}>Device Details</Text>
+                <Text style={styles.menuItemSubtitle}>View full information</Text>
+              </View>
             </TouchableOpacity>
 
+            {/* Remove Device - Danger Action */}
             <TouchableOpacity
               style={[styles.menuItem, styles.menuItemDanger]}
               onPress={handleRemoveDevice}
             >
-              <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Remove Device</Text>
+              <View style={[styles.menuItemIconContainer, styles.menuItemIconContainerDanger]}>
+                <Icon name="trash-2" size={18} color="#FF3B30" />
+              </View>
+              <View style={styles.menuItemContent}>
+                <Text style={[styles.menuItemTitle, styles.menuItemTitleDanger]}>Remove Device</Text>
+                <Text style={[styles.menuItemSubtitle, styles.menuItemSubtitleDanger]}>Unpair from home</Text>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -927,30 +957,61 @@ const styles = StyleSheet.create({
 
   deviceCard: {
     width: '48%',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
     padding: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 3,
     justifyContent: 'space-between',
-    minHeight: 200,
+    minHeight: 140,
+  },
+
+  deviceCardActive: {
+    backgroundColor: '#F0F5FF',
+    shadowColor: '#007AFF',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+
+  deviceCardInactive: {
+    backgroundColor: '#F8F9FA',
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 2,
   },
 
   deviceCardOffline: {
-    opacity: 0.5,
+    backgroundColor: '#F2F4F8',
+    shadowColor: '#000',
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
   },
 
   deviceCardIconContainer: {
-    width: 56,
-    height: 56,
+    width: 48,
+    height: 48,
     borderRadius: 16,
-    backgroundColor: 'rgba(59, 130, 246, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
+  },
+
+  deviceCardIconContainerActive: {
+    backgroundColor: 'rgba(0, 122, 255, 0.12)',
+  },
+
+  deviceCardIconContainerInactive: {
+    backgroundColor: 'rgba(156, 163, 175, 0.08)',
+  },
+
+  deviceCardIconContainerOffline: {
+    backgroundColor: 'rgba(209, 213, 219, 0.08)',
   },
 
   deviceCardInfo: {
@@ -961,40 +1022,48 @@ const styles = StyleSheet.create({
 
   deviceCardName: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+
+  deviceCardNameOffline: {
+    color: '#8E8E93',
+    opacity: 0.6,
   },
 
   deviceCardRoom: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#9CA3AF',
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#8E8E93',
+  },
+
+  deviceCardRoomOffline: {
+    opacity: 0.5,
   },
 
   deviceCardFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    gap: 8,
   },
 
-  deviceCardStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-
-  statusIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-
-  deviceCardStatusText: {
+  deviceCardStateText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#666666',
-    textTransform: 'capitalize',
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+
+  deviceCardStateTextOn: {
+    color: '#007AFF',
+  },
+
+  deviceCardStateTextOff: {
+    color: '#9CA3AF',
+  },
+
+  deviceCardStateTextOffline: {
+    color: '#D1D5DB',
   },
 
   // Energy Section
@@ -1232,10 +1301,10 @@ const styles = StyleSheet.create({
   // Bottom Sheet
   bottomSheet: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 20,
   },
 
   bottomSheetHandle: {
@@ -1244,13 +1313,13 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: '#E5E7EB',
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
 
   bottomSheetTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#000000',
+    fontWeight: '600',
+    color: '#1C1C1E',
     marginBottom: 16,
   },
 
@@ -1262,26 +1331,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F8F9FA',
+    gap: 12,
   },
 
-  menuItemIcon: {
-    fontSize: 20,
-    marginRight: 12,
+  menuItemIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
-  menuItemText: {
-    fontSize: 14,
+  menuItemIconContainerDanger: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+  },
+
+  menuItemContent: {
+    flex: 1,
+    gap: 2,
+  },
+
+  menuItemTitle: {
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#1C1C1E',
+  },
+
+  menuItemTitleDanger: {
+    color: '#FF3B30',
+  },
+
+  menuItemSubtitle: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#8E8E93',
+  },
+
+  menuItemSubtitleDanger: {
+    color: '#FF3B30',
+    opacity: 0.7,
   },
 
   menuItemDanger: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-  },
-
-  menuItemTextDanger: {
-    color: '#EF4444',
+    backgroundColor: 'rgba(255, 59, 48, 0.08)',
   },
 
   menuItemCancel: {
@@ -1290,14 +1384,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
     marginTop: 8,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F8F9FA',
     alignItems: 'center',
   },
 
   menuItemCancelText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#1C1C1E',
   },
 
   // Rename Modal
