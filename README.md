@@ -1,6 +1,6 @@
 # SmartHomeApp
 
-A React Native mobile application for discovering, provisioning, and controlling ESP32-based smart home devices via BLE and MQTT.
+A premium React Native mobile application for discovering, provisioning, and controlling ESP32-based smart home devices via BLE and MQTT. Features a sophisticated UI with real-time device control, notifications, and settings management.
 
 ## 📱 Features
 
@@ -13,6 +13,11 @@ A React Native mobile application for discovering, provisioning, and controlling
 ✅ **Permission Management** - Bundled permission requests during onboarding  
 ✅ **Error Handling** - Structured error types with user-friendly messages  
 ✅ **Animations** - Smooth transitions and interactive UI elements  
+✅ **Premium UI** - Frosted glass cards, soft shadows, premium design language  
+✅ **Notifications Screen** - Manage device alerts and system notifications  
+✅ **Settings Screen** - App preferences, theme, language, device settings  
+✅ **Profile Screen** - User profile, home statistics, account management  
+✅ **Live Activity** - Real-time device event tracking with empty state design  
 
 ## 🏗️ Architecture
 
@@ -79,20 +84,58 @@ StartupScreen (Onboarding)
   └─ Permission request
 
 HomeScreen (Main Hub)
-  ├─ Device list
-  ├─ Add Device FAB
-  ├─ Device menu (long-press)
+  ├─ Device list (2-column grid)
+  ├─ Live Activity section
+  ├─ Status chips (On, Online, Off)
+  ├─ Room filters
+  ├─ Scene quick actions
+  ├─ Add Device button
   │
-  └─ DeviceDetailsScreen
-      ├─ MetricsTab (soil moisture, WiFi, temperature, etc.)
-      ├─ ControllerTab (LED control)
-      └─ SettingsTab (device info, WiFi config, factory reset)
+  ├─ Header Icons:
+  │  ├─ 🔔 Bell → NotificationScreen
+  │  └─ ⚙️ Settings → SettingsScreen
+  │
+  ├─ Navbar:
+  │  ├─ Home (active)
+  │  ├─ Add → SimpleBleProvision
+  │  └─ Profile → ProfileScreen
+  │
+  └─ Device Long-Press Menu
+      ├─ Rename Device
+      ├─ Reconfigure WiFi
+      ├─ Restart Device
+      └─ Remove Device
+
+NotificationScreen
+  ├─ Device Alerts (toggles)
+  ├─ System Updates
+  ├─ Home Activity
+  └─ Security Alerts
+
+SettingsScreen
+  ├─ App Preferences (Theme, Language, Appearance)
+  ├─ Device Settings (Network, Firmware, Logs)
+  └─ About (Version, Help, Terms)
+
+ProfileScreen
+  ├─ User Profile Card
+  ├─ My Home Stats
+  ├─ Home Settings
+  ├─ App Preferences
+  ├─ Device & System
+  └─ Account (Logout)
+
+DeviceDetailsScreen
+  ├─ MetricsTab (soil moisture, WiFi, temperature, etc.)
+  ├─ ControllerTab (LED control)
+  └─ SettingsTab (device info, WiFi config, factory reset)
 
 Provisioning Flow
   ├─ SimpleBleProvisionScreen (BLE discovery)
   ├─ WiFiProvisioningScreen (WiFi setup)
   ├─ ProvisioningProgressScreen (progress)
-  └─ ProvisioningSuccessScreen (confirmation)
+  ├─ ProvisioningSuccessScreen (confirmation)
+  └─ DeviceNamingScreen (friendly name setup)
 ```
 
 ## 🔌 MQTT Communication
@@ -365,6 +408,33 @@ For issues or questions:
 3. Check console logs with [prefix] tags
 4. Verify MQTT connection and device status
 
+## 🎨 Recent UI Improvements (v0.1.0)
+
+### Premium Design System
+- Frosted glass card styling with subtle borders
+- Soft shadows and refined spacing
+- Premium color palette with blue accents
+- Smooth animations and transitions
+
+### Home Screen Enhancements
+- 2-column device grid layout
+- Live Activity section with real-time events
+- Status chips (On, Online, Off) with dynamic colors
+- Room filter chips with segmented design
+- Scene quick-action row
+- Premium empty states with icons
+
+### New Screens
+- **NotificationScreen** - Manage device alerts and notifications
+- **SettingsScreen** - App preferences, theme, language, device settings
+- **ProfileScreen** - User profile, home statistics, account management
+
+### Device Card Refinements
+- Clean friendly device names (no raw IDs)
+- Room/location display
+- Simple ON/OFF/Offline state indicators
+- Smooth toggle switches with real-time feedback
+
 ## 📄 License
 
 This project is provided as-is for educational and development purposes.
@@ -372,6 +442,6 @@ This project is provided as-is for educational and development purposes.
 ---
 
 **Last Updated:** May 2026  
-**Version:** 0.0.1  
-**Status:** Active Development
+**Version:** 0.1.0  
+**Status:** Active Development - Premium UI Phase Complete
 
