@@ -5,6 +5,7 @@ export interface ProvisionedDevice {
   id: string;
   name: string; // Internal provisioning ID (e.g., PROV_26B7B3F8)
   displayName?: string; // User-friendly display name (e.g., "Living Room Hub")
+  roomName?: string; // Room/location name (e.g., "Living room", "Kitchen")
   macAddress: string;
   mqttDeviceId?: string; // ✅ MQTT device ID for topic usage
   ssid: string;

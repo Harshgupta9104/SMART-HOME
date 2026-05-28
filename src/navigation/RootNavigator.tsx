@@ -10,6 +10,9 @@ import ProvisioningProgressScreen from '../screens/ProvisioningProgressScreen';
 import ProvisioningSuccessScreen from '../screens/ProvisioningSuccessScreen';
 import DeviceDetailsScreen from '../screens/DeviceDetailsScreen';
 import DeviceNamingScreen from '../screens/DeviceNamingScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import NotificationScreen from '../screens/NotificationScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -86,6 +89,27 @@ const RootNavigator = () => {
           options={{
             headerShown: false,
             gestureEnabled: false,
+          }}
+        />
+        <Stack.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="Notifications"
+          component={NotificationScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{
+            headerShown: false,
           }}
         />
       </Stack.Navigator>
