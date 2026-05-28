@@ -30,10 +30,6 @@ const HomeScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const [devices, setDevices] = useState<ProvisionedDevice[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedDevice, setSelectedDevice] = useState<ProvisionedDevice | null>(null);
-  const [showDeviceMenu, setShowDeviceMenu] = useState(false);
-  const [showRenameModal, setShowRenameModal] = useState(false);
-  const [newDeviceName, setNewDeviceName] = useState('');
   const [selectedRoom, setSelectedRoom] = useState<string>('All rooms');
   const [deviceMetrics, setDeviceMetrics] = useState<Map<string, DeviceMetrics>>(new Map());
   const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
@@ -114,11 +110,6 @@ const HomeScreen = ({ navigation }: any) => {
     navigation.navigate('DeviceDetails', { device });
   };
 
-  const handleDeviceLongPress = (device: ProvisionedDevice) => {
-    setSelectedDevice(device);
-    setShowDeviceMenu(true);
-  };
-
   const handleToggleDevice = async (device: ProvisionedDevice) => {
     const mqttDeviceId = device.mqttDeviceId || device.id;
     const metrics = deviceMetrics.get(mqttDeviceId);
@@ -168,57 +159,6 @@ const HomeScreen = ({ navigation }: any) => {
     };
 
     setActivityLog(prev => [newLog, ...prev].slice(0, 5));
-  };
-
-  const handleRenameDevice = async () => {
-    if (!selectedDevice || !newDeviceName.trim()) return;
-
-    try {
-      const updatedDevice = {
-        ...selectedDevice,
-        name: newDeviceName.trim(),
-      };
-      await storageService.addProvisionedDevice(updatedDevice);
-      setDevices(devices.map(d => d.id === selectedDevice.id ? updatedDevice : d));
-      setShowRenameModal(false);
-      setShowDeviceMenu(false);
-      setNewDeviceName('');
-    } catch (error) {
-      console.error('[HomeScreen] Error renaming device:', error);
-      Alert.alert('Error', 'Failed to rename device');
-    }
-  };
-
-  const handleRemoveDevice = () => {
-    if (!selectedDevice) return;
-
-    Alert.alert(
-      'Remove Device',
-      `Remove "${selectedDevice.name}" from your dashboard?`,
-      [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
-        {
-          text: 'Remove',
-          onPress: async () => {
-            try {
-              await storageService.removeProvisionedDevice(selectedDevice.id);
-              setDevices(devices.filter(d => d.id !== selectedDevice.id));
-              
-              const unsubscribe = unsubscribersRef.current.get(selectedDevice.id);
-              if (unsubscribe) unsubscribe();
-              unsubscribersRef.current.delete(selectedDevice.id);
-
-              setShowDeviceMenu(false);
-              setSelectedDevice(null);
-            } catch (error) {
-              console.error('[HomeScreen] Error removing device:', error);
-              Alert.alert('Error', 'Failed to remove device');
-            }
-          },
-          style: 'destructive',
-        },
-      ]
-    );
   };
 
   const formatActivityTime = (timestamp: number) => {
@@ -446,8 +386,6 @@ const HomeScreen = ({ navigation }: any) => {
                     device.status === 'offline' && styles.deviceCardOffline,
                   ]}
                   onPress={() => handleDevicePress(device)}
-                  onLongPress={() => handleDeviceLongPress(device)}
-                  delayLongPress={500}
                   activeOpacity={0.85}
                 >
                   {/* Device Icon - Top */}
@@ -546,7 +484,10 @@ const HomeScreen = ({ navigation }: any) => {
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => navigation.navigate('Home')}
+          onPress={() => {
+            // Only navigate if not already on Home
+            navigation.navigate('HomeMain');
+          }}
           activeOpacity={0.7}
         >
           <Icon name="home" size={20} color="#3B82F6" />
@@ -558,7 +499,9 @@ const HomeScreen = ({ navigation }: any) => {
           onPress={() => handleAddDevice()}
           activeOpacity={0.7}
         >
-          <Icon name="plus" size={20} color="#666666" />
+          <View style={styles.navAddButton}>
+            <Icon name="plus" size={20} color="#3B82F6" />
+          </View>
           <Text style={styles.navLabel}>Add</Text>
         </TouchableOpacity>
 
@@ -571,114 +514,6 @@ const HomeScreen = ({ navigation }: any) => {
           <Text style={styles.navLabel}>Profile</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Device Menu Bottom Sheet */}
-      <Modal
-        visible={showDeviceMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDeviceMenu(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowDeviceMenu(false)}
-        >
-          <View style={[styles.bottomSheet, { paddingBottom: insets.bottom }]}>
-            <View style={styles.bottomSheetHandle} />
-
-            <Text style={styles.bottomSheetTitle}>Manage Device</Text>
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowDeviceMenu(false);
-                setShowRenameModal(true);
-                setNewDeviceName(selectedDevice?.name || '');
-              }}
-            >
-              <Text style={styles.menuItemText}>Rename Device</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowDeviceMenu(false);
-                Alert.alert('WiFi Reconfiguration', 'Coming soon');
-              }}
-            >
-              <Text style={styles.menuItemText}>Reconfigure WiFi</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowDeviceMenu(false);
-                Alert.alert('Restart Device', 'Device restart command sent');
-              }}
-            >
-              <Text style={styles.menuItemText}>Restart Device</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.menuItem, styles.menuItemDanger]}
-              onPress={handleRemoveDevice}
-            >
-              <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Remove Device</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.menuItemCancel}
-              onPress={() => setShowDeviceMenu(false)}
-            >
-              <Text style={styles.menuItemCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Rename Modal */}
-      <Modal
-        visible={showRenameModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowRenameModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowRenameModal(false)}
-        >
-          <View style={styles.renameModal}>
-            <Text style={styles.renameTitle}>Rename Device</Text>
-
-            <TextInput
-              style={styles.renameInput}
-              placeholder="Enter device name"
-              placeholderTextColor="#9CA3AF"
-              value={newDeviceName}
-              onChangeText={setNewDeviceName}
-              maxLength={30}
-            />
-
-            <View style={styles.renameButtonRow}>
-              <TouchableOpacity
-                style={[styles.renameButton, styles.renameCancelButton]}
-                onPress={() => setShowRenameModal(false)}
-              >
-                <Text style={styles.renameCancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.renameButton, styles.renameSaveButton]}
-                onPress={handleRenameDevice}
-              >
-                <Text style={styles.renameSaveButtonText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </Animated.View>
   );
 };
@@ -1225,9 +1060,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 20,
-    paddingTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 7,
+    paddingHorizontal: 1,
+    paddingVertical: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -1241,6 +1076,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     gap: 4,
+  },
+
+  navAddButton: {
+    width: 50,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   navLabel: {
