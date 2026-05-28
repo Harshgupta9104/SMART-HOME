@@ -103,7 +103,7 @@ const HomeScreen = ({ navigation }: any) => {
   }, []);
 
   const handleAddDevice = () => {
-    navigation.navigate('SimpleBleProvision');
+    navigation.navigate('AddDevice');
   };
 
   const handleDevicePress = (device: ProvisionedDevice) => {

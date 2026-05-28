@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View } from 'react-native';
 
 import HomeScreen from '../screens/HomeScreen';
+import AddDeviceScreen from '../screens/AddDeviceScreen';
 import SimpleBleProvisionScreen from '../screens/SimpleBleProvisionScreen';
 import WiFiProvisioningScreen from '../screens/WiFiProvisioningScreen';
 import ProvisioningProgressScreen from '../screens/ProvisioningProgressScreen';
@@ -46,6 +47,13 @@ const RootNavigator = () => {
         }}
       >
         <Stack.Screen name="HomeMain" component={HomeScreen} />
+        <Stack.Screen
+          name="AddDevice"
+          component={AddDeviceScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
         <Stack.Screen
           name="DeviceDetails"
           component={DeviceDetailsScreen}
