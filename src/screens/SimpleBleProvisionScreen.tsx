@@ -147,36 +147,57 @@ const AnimatedLoadingDots = () => {
   const dot3Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Dot 1 animation - continuous wave
+    // Dot 1 animation - starts immediately
     Animated.loop(
-      Animated.timing(dot1Anim, {
-        toValue: 1,
-        duration: 2700,
-        useNativeDriver: true,
-      })
+      Animated.sequence([
+        Animated.timing(dot1Anim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dot1Anim, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
     ).start();
 
-    // Dot 2 animation - starts 300ms later for wave effect
+    // Dot 2 animation - starts 200ms later for wave effect
     setTimeout(() => {
       Animated.loop(
-        Animated.timing(dot2Anim, {
-          toValue: 1,
-          duration: 2700,
-          useNativeDriver: true,
-        })
+        Animated.sequence([
+          Animated.timing(dot2Anim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
       ).start();
-    }, 300);
+    }, 200);
 
-    // Dot 3 animation - starts 600ms later for wave effect
+    // Dot 3 animation - starts 400ms later for wave effect
     setTimeout(() => {
       Animated.loop(
-        Animated.timing(dot3Anim, {
-          toValue: 1,
-          duration: 2700,
-          useNativeDriver: true,
-        })
+        Animated.sequence([
+          Animated.timing(dot3Anim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
       ).start();
-    }, 600);
+    }, 400);
   }, []);
 
   return (
@@ -186,17 +207,9 @@ const AnimatedLoadingDots = () => {
           styles.animatedDot,
           {
             opacity: dot1Anim.interpolate({
-              inputRange: [0, 0.25, 0.5, 0.75, 1],
-              outputRange: [0.3, 1, 0.3, 0.3, 0.3],
+              inputRange: [0, 1],
+              outputRange: [0.3, 1],
             }),
-            transform: [
-              {
-                translateY: dot1Anim.interpolate({
-                  inputRange: [0, 0.25, 0.5, 0.75, 1],
-                  outputRange: [0, -4, 0, 0, 0],
-                }),
-              },
-            ],
           },
         ]}
       >
@@ -207,17 +220,9 @@ const AnimatedLoadingDots = () => {
           styles.animatedDot,
           {
             opacity: dot2Anim.interpolate({
-              inputRange: [0, 0.25, 0.5, 0.75, 1],
-              outputRange: [0.3, 1, 0.3, 0.3, 0.3],
+              inputRange: [0, 1],
+              outputRange: [0.3, 1],
             }),
-            transform: [
-              {
-                translateY: dot2Anim.interpolate({
-                  inputRange: [0, 0.25, 0.5, 0.75, 1],
-                  outputRange: [0, -4, 0, 0, 0],
-                }),
-              },
-            ],
           },
         ]}
       >
@@ -228,17 +233,9 @@ const AnimatedLoadingDots = () => {
           styles.animatedDot,
           {
             opacity: dot3Anim.interpolate({
-              inputRange: [0, 0.25, 0.5, 0.75, 1],
-              outputRange: [0.3, 1, 0.3, 0.3, 0.3],
+              inputRange: [0, 1],
+              outputRange: [0.3, 1],
             }),
-            transform: [
-              {
-                translateY: dot3Anim.interpolate({
-                  inputRange: [0, 0.25, 0.5, 0.75, 1],
-                  outputRange: [0, -4, 0, 0, 0],
-                }),
-              },
-            ],
           },
         ]}
       >
@@ -248,7 +245,26 @@ const AnimatedLoadingDots = () => {
   );
 };
 
-// Animated Scanning Icon Component - Wave Ripple Effect (Premium)
+// Frozen Scanning Icon Component - Grey Ripples (for Scan Stopped state)
+const FrozenScanningIcon = () => {
+  return (
+    <View style={styles.frozenIconContainer}>
+      {/* Ripple 1 - Largest */}
+      <View style={styles.frozenRipple1} />
+      
+      {/* Ripple 2 - Medium */}
+      <View style={styles.frozenRipple2} />
+      
+      {/* Ripple 3 - Small */}
+      <View style={styles.frozenRipple3} />
+
+      {/* Main device icon */}
+      <View style={styles.frozenMainIcon}>
+        <DevicePlusIcon size={48} color="#9CA3AF" />
+      </View>
+    </View>
+  );
+};
 const AnimatedScanningIcon = () => {
   const ripple1Anim = useRef(new Animated.Value(0)).current;
   const ripple2Anim = useRef(new Animated.Value(0)).current;
@@ -821,7 +837,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
             })}
           </View>
         </Animated.ScrollView>
-      ) : !isScanning && devices.length > 0 ? (
+      ) : (
         <Animated.ScrollView 
           style={[
             styles.scrollView,
@@ -842,9 +858,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
         >
           {/* Hero Icon - Stopped State */}
           <View style={styles.heroSection}>
-            <View style={styles.emptyStateIcon}>
-              <Icon name="pause-circle" size={48} color="#9CA3AF" />
-            </View>
+            <FrozenScanningIcon />
           </View>
 
           {/* Title */}
@@ -860,94 +874,122 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
           {/* Section Label */}
           <Text style={styles.sectionLabel}>NEARBY DEVICES</Text>
 
-          {/* Device List */}
-          <View style={styles.deviceListContainer}>
-            {devices.sort((a, b) => b.rssi - a.rssi).map((item) => {
-              return (
-                <View
-                  key={item.id}
-                  style={styles.deviceCardNew}
-                >
-                  {/* Top Row: Icon + Details */}
-                  <View style={styles.deviceCardTopRow}>
-                    {/* Left: Icon */}
-                    <View style={styles.deviceIconNew}>
-                      <DeviceIcon size={32} color="#3B82F6" />
-                    </View>
-
-                    {/* Right: Info */}
-                    <View style={styles.deviceInfoNew}>
-                      <Text style={styles.deviceNameNew}>Smart Device</Text>
-                      
-                      <View style={styles.statusRowNew}>
-                        <Icon name="tag" size={12} color="#9CA3AF" />
-                        <Text style={styles.deviceRawNameNew}>{item.name}</Text>
-                      </View>
-                      
-                      <View style={styles.statusRowNew}>
-                        <View style={styles.statusDotGreen} />
-                        <Text style={styles.statusTextNew}>Ready to connect</Text>
-                      </View>
-                      
-                      <View style={styles.signalRowNew}>
-                        <Icon name="wifi" size={12} color="#9CA3AF" />
-                        <View 
-                          style={[
-                            styles.signalIndicator,
-                            item.rssi > -55 ? styles.signalExcellent :
-                            item.rssi > -70 ? styles.signalGood :
-                            item.rssi > -85 ? styles.signalFair :
-                            styles.signalPoor
-                          ]}
-                        />
-                        <Text style={styles.signalTextNew}>Signal: <Text style={styles.signalQualityHighlight}>{getSignalQuality(item.rssi)}</Text></Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Bottom: Connect Button - ONLY THIS NAVIGATES */}
-                  <TouchableOpacity
-                    style={styles.connectButtonNew}
-                    onPress={() => handleDeviceSelect(item)}
-                    activeOpacity={0.8}
+          {/* No Devices Detected Card */}
+          {devices.length === 0 ? (
+            <View style={styles.noDevicesCard}>
+              <View style={styles.noDevicesIconContainer}>
+                <Icon name="wifi-off" size={32} color="#9CA3AF" />
+              </View>
+              <Text style={styles.noDevicesTitle}>No devices detected</Text>
+              <Text style={styles.noDevicesSubtitle}>Scanning ended without finding any compatible devices in range.</Text>
+            </View>
+          ) : (
+            /* Device List */
+            <View style={styles.deviceListContainer}>
+              {devices.sort((a, b) => b.rssi - a.rssi).map((item) => {
+                return (
+                  <View
+                    key={item.id}
+                    style={styles.deviceCardNew}
                   >
-                    <Text style={styles.connectButtonTextNew}>Connect</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
+                    {/* Top Row: Icon + Details */}
+                    <View style={styles.deviceCardTopRow}>
+                      {/* Left: Icon */}
+                      <View style={styles.deviceIconNew}>
+                        <DeviceIcon size={32} color="#3B82F6" />
+                      </View>
+
+                      {/* Right: Info */}
+                      <View style={styles.deviceInfoNew}>
+                        <Text style={styles.deviceNameNew}>Smart Device</Text>
+                        
+                        <View style={styles.statusRowNew}>
+                          <Icon name="tag" size={12} color="#9CA3AF" />
+                          <Text style={styles.deviceRawNameNew}>{item.name}</Text>
+                        </View>
+                        
+                        <View style={styles.statusRowNew}>
+                          <View style={styles.statusDotGreen} />
+                          <Text style={styles.statusTextNew}>Ready to connect</Text>
+                        </View>
+                        
+                        <View style={styles.signalRowNew}>
+                          <Icon name="wifi" size={12} color="#9CA3AF" />
+                          <View 
+                            style={[
+                              styles.signalIndicator,
+                              item.rssi > -55 ? styles.signalExcellent :
+                              item.rssi > -70 ? styles.signalGood :
+                              item.rssi > -85 ? styles.signalFair :
+                              styles.signalPoor
+                            ]}
+                          />
+                          <Text style={styles.signalTextNew}>Signal: <Text style={styles.signalQualityHighlight}>{getSignalQuality(item.rssi)}</Text></Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Bottom: Connect Button - ONLY THIS NAVIGATES */}
+                    <TouchableOpacity
+                      style={styles.connectButtonNew}
+                      onPress={() => handleDeviceSelect(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.connectButtonTextNew}>Connect</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Troubleshooting Tips Section */}
+          <Text style={styles.troubleshootingLabel}>TROUBLESHOOTING TIPS</Text>
+          
+          <View style={styles.troubleshootingCard}>
+            <View style={styles.troubleshootingHeader}>
+              <Icon name="lightbulb" size={18} color="#3B82F6" />
+              <Text style={styles.troubleshootingTitle}>Try these steps</Text>
+            </View>
+
+            {/* Tip 1 */}
+            <View style={styles.tipItem}>
+              <View style={styles.tipNumber}>
+                <Text style={styles.tipNumberText}>1</Text>
+              </View>
+              <View style={styles.tipContent}>
+                <Text style={styles.tipMainText}>Power cycle your device</Text>
+                <Text style={styles.tipSubText}>— turn it off and back on, then try again.</Text>
+              </View>
+            </View>
+
+            {/* Tip 2 */}
+            <View style={styles.tipItem}>
+              <View style={styles.tipNumber}>
+                <Text style={styles.tipNumberText}>2</Text>
+              </View>
+              <View style={styles.tipContent}>
+                <Text style={styles.tipMainText}>Move closer</Text>
+                <Text style={styles.tipSubText}>— stay within 1-2 metres during pairing.</Text>
+              </View>
+            </View>
+
+            {/* Tip 3 */}
+            <View style={styles.tipItem}>
+              <View style={styles.tipNumber}>
+                <Text style={styles.tipNumberText}>3</Text>
+              </View>
+              <View style={styles.tipContent}>
+                <Text style={styles.tipMainText}>Enable Bluetooth & location</Text>
+                <Text style={styles.tipSubText}>— both are required for scanning.</Text>
+              </View>
+            </View>
           </View>
 
           {/* Scan Again Button */}
           <TouchableOpacity style={styles.scanAgainButtonLarge} onPress={handleRefresh}>
-            <Icon name="rotate-cw" size={16} color="#FFFFFF" />
+            <Icon name="arrow-right" size={16} color="#10B981" />
             <Text style={styles.scanAgainButtonTextLarge}>Scan again</Text>
-          </TouchableOpacity>
-        </Animated.ScrollView>
-      ) : (
-        <Animated.ScrollView 
-          style={[
-            styles.scrollView,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            }
-          ]}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* Fallback state - should not reach here */}
-          <View style={styles.heroSection}>
-            <View style={styles.emptyStateIcon}>
-              <Icon name="smartphone" size={24} color="#D1D5DB" />
-            </View>
-          </View>
-          
-          <Text style={styles.scanningTitle}>Ready to search</Text>
-          <Text style={styles.scanningSubtitle}>Tap the button below to start scanning.</Text>
-
-          <TouchableOpacity style={styles.restartSearchButton} onPress={startScanning}>
-            <Icon name="search" size={16} color="#FFFFFF" />
-            <Text style={styles.restartSearchButtonText}>Start search</Text>
           </TouchableOpacity>
         </Animated.ScrollView>
       )}
@@ -1114,6 +1156,58 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
+  // Frozen Scanning Icon (for Scan Stopped state)
+  frozenIconContainer: {
+    width: 140,
+    height: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 70,
+  },
+
+  frozenRipple1: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 1.5,
+    borderColor: '#D1D5DB',
+  },
+
+  frozenRipple2: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+  },
+
+  frozenRipple3: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: '#F3F4F6',
+  },
+
+  frozenMainIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: '#F4F7FB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#9CA3AF',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+
   scanningTitle: {
     fontSize: 24,
     fontWeight: '700',
@@ -1238,7 +1332,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#EF4444',
     flexShrink: 0,
   },
 
@@ -1576,23 +1670,139 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#3B82F6',
+    borderWidth: 2,
+    borderColor: '#10B981',
     marginTop: 12,
     marginBottom: 12,
-    shadowColor: '#3B82F6',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowColor: '#10B981',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
 
   scanAgainButtonTextLarge: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#10B981',
+  },
+
+  // No Devices Card
+  noDevicesCard: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+
+  noDevicesIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  noDevicesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+
+  noDevicesSubtitle: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  // Troubleshooting Section
+  troubleshootingLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+
+  troubleshootingCard: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+
+  troubleshootingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+
+  troubleshootingTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+
+  tipItem: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 14,
+    alignItems: 'flex-start',
+  },
+
+  tipNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+
+  tipNumberText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+
+  tipContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+
+  tipMainText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+
+  tipSubText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#9CA3AF',
+    lineHeight: 16,
   },
 
   // Error
