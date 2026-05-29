@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,134 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 
+// Custom Device + Plus Icon Component (Gradient style)
+const DevicePlusIcon = ({ size = 32, color = '#3B82F6' }) => {
+  const deviceSize = size * 0.75;
+  const plusSize = size * 0.4;
+  
+  return (
+    <View style={{ position: 'relative', width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      {/* Device with gradient background */}
+      <View
+        style={{
+          width: deviceSize,
+          height: deviceSize * 1.3,
+          borderRadius: deviceSize * 0.25,
+          backgroundColor: color,
+          opacity: 0.9,
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingVertical: deviceSize * 0.15,
+          shadowColor: color,
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 5,
+        }}
+      >
+        {/* Device screen area */}
+        <View
+          style={{
+            width: deviceSize * 0.85,
+            height: deviceSize * 0.8,
+            borderRadius: deviceSize * 0.12,
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+          }}
+        />
+        
+        {/* Device home button */}
+        <View
+          style={{
+            width: deviceSize * 0.25,
+            height: deviceSize * 0.12,
+            borderRadius: deviceSize * 0.06,
+            backgroundColor: 'rgba(255, 255, 255, 0.3)',
+          }}
+        />
+      </View>
+      
+      {/* Plus badge on top-right */}
+      <View
+        style={{
+          position: 'absolute',
+          top: -4,
+          right: -4,
+          width: plusSize,
+          height: plusSize,
+          borderRadius: plusSize / 2,
+          backgroundColor: '#5B5FFF',
+          justifyContent: 'center',
+          alignItems: 'center',
+          borderWidth: 3,
+          borderColor: '#F4F7FB',
+          shadowColor: '#5B5FFF',
+          shadowOpacity: 0.4,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 6,
+        }}
+      >
+        <Text style={{ color: '#FFFFFF', fontSize: plusSize * 0.45, fontWeight: '700', lineHeight: plusSize * 0.45 }}>+</Text>
+      </View>
+    </View>
+  );
+};
+
+// Animated Hero Icon Component
+const AnimatedHeroIcon = () => {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.08,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Float animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -4,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        {
+          transform: [
+            { scale: pulseAnim },
+            { translateY: floatAnim },
+          ],
+        },
+      ]}
+    >
+      <DevicePlusIcon size={32} color="#3B82F6" />
+    </Animated.View>
+  );
+};
+
 interface SetupMethod {
   id: string;
   title: string;
@@ -19,10 +147,12 @@ interface SetupMethod {
   badge: string;
   isActive: boolean;
   onPress?: () => void;
+  iconColor?: string;
 }
 
 const AddDeviceScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
+  const [selectedSetupId, setSelectedSetupId] = useState<string>('nearby');
   
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -51,6 +181,7 @@ const AddDeviceScreen = ({ navigation }: any) => {
   }, []);
 
   const handleNearbySetup = () => {
+    setSelectedSetupId('nearby');
     navigation.navigate('SimpleBleProvision');
   };
 
@@ -58,31 +189,44 @@ const AddDeviceScreen = ({ navigation }: any) => {
     navigation.goBack();
   };
 
+  const handleQRSetup = () => {
+    setSelectedSetupId('qr');
+    console.log('QR Code setup - Coming soon');
+  };
+
+  const handleManualSetup = () => {
+    setSelectedSetupId('manual');
+    console.log('Manual setup - Coming soon');
+  };
+
   const setupMethods: SetupMethod[] = [
     {
       id: 'nearby',
-      title: 'Nearby Setup',
+      title: 'Nearby setup',
       subtitle: 'Find devices using Bluetooth',
       icon: 'bluetooth',
       badge: 'Ready',
       isActive: true,
       onPress: handleNearbySetup,
+      iconColor: '#3B82F6',
     },
     {
       id: 'qr',
-      title: 'Scan QR Code',
+      title: 'Scan QR code',
       subtitle: 'Quick setup with a QR code',
-      icon: 'square',
+      icon: 'grid',
       badge: 'Coming soon',
       isActive: false,
+      iconColor: '#10B981',
     },
     {
       id: 'manual',
-      title: 'Add Manually',
+      title: 'Add manually',
       subtitle: 'Enter device details yourself',
-      icon: 'edit-3',
+      icon: 'sliders',
       badge: 'Coming soon',
       isActive: false,
+      iconColor: '#8B5CF6',
     },
   ];
 
@@ -95,20 +239,20 @@ const AddDeviceScreen = ({ navigation }: any) => {
           method.isActive ? styles.setupCardActive : styles.setupCardDisabled,
         ]}
         onPress={method.onPress}
-        disabled={!method.isActive}
-        activeOpacity={method.isActive ? 0.8 : 1}
+        activeOpacity={0.7}
       >
         {/* Icon Container */}
         <View
           style={[
             styles.iconContainer,
-            method.isActive ? styles.iconContainerActive : styles.iconContainerDisabled,
+            selectedSetupId === method.id ? styles.iconContainerActive : styles.iconContainerDisabled,
+            { backgroundColor: method.iconColor ? `${method.iconColor}20` : 'rgba(156, 163, 175, 0.1)' },
           ]}
         >
           <Icon
             name={method.icon}
             size={20}
-            color="#3B82F6"
+            color={method.iconColor || '#3B82F6'}
           />
         </View>
 
@@ -117,7 +261,7 @@ const AddDeviceScreen = ({ navigation }: any) => {
           <Text
             style={[
               styles.cardTitle,
-              method.isActive ? styles.cardTitleActive : styles.cardTitleDisabled,
+              selectedSetupId === method.id ? styles.cardTitleActive : styles.cardTitleDisabled,
             ]}
           >
             {method.title}
@@ -125,7 +269,7 @@ const AddDeviceScreen = ({ navigation }: any) => {
           <Text
             style={[
               styles.cardSubtitle,
-              method.isActive ? styles.cardSubtitleActive : styles.cardSubtitleDisabled,
+              selectedSetupId === method.id ? styles.cardSubtitleActive : styles.cardSubtitleDisabled,
             ]}
           >
             {method.subtitle}
@@ -137,19 +281,19 @@ const AddDeviceScreen = ({ navigation }: any) => {
           <View
             style={[
               styles.badge,
-              method.isActive ? styles.badgeActive : styles.badgeDisabled,
+              selectedSetupId === method.id ? styles.badgeActive : styles.badgeDisabled,
             ]}
           >
             <Text
               style={[
                 styles.badgeText,
-                method.isActive ? styles.badgeTextActive : styles.badgeTextDisabled,
+                selectedSetupId === method.id ? styles.badgeTextActive : styles.badgeTextDisabled,
               ]}
             >
               {method.badge}
             </Text>
           </View>
-          {method.isActive && (
+          {selectedSetupId === method.id && (
             <Icon name="chevron-right" size={16} color="#3B82F6" />
           )}
         </View>
@@ -198,17 +342,20 @@ const AddDeviceScreen = ({ navigation }: any) => {
           ]}
         >
           <View style={styles.heroIconContainer}>
-            <Icon name="home" size={32} color="#3B82F6" />
+            <AnimatedHeroIcon />
           </View>
           <Text style={styles.heroTitle}>Add Device</Text>
           <Text style={styles.heroSubtitle}>
-            Set up a new smart device in your home.
+            Connect a nearby device and make it part of your home.
           </Text>
+          <View style={styles.stepIndicator}>
+            <Text style={styles.stepIndicatorText}>Step 1 of 3</Text>
+          </View>
         </Animated.View>
 
         {/* Setup Methods Section */}
         <View style={styles.setupSection}>
-          <Text style={styles.sectionLabel}>Choose setup method</Text>
+          <Text style={styles.sectionLabel}>Setup method</Text>
 
           <View style={styles.setupCardsContainer}>
             {setupMethods.map(method => renderSetupCard(method))}
@@ -243,17 +390,24 @@ const styles = StyleSheet.create({
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    backgroundColor: 'transparent',
-    borderWidth: 0,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 20,
     alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
 
   backButtonText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#6B7280',
   },
 
@@ -275,31 +429,58 @@ const styles = StyleSheet.create({
   },
 
   heroIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    backgroundColor: 'rgba(59, 130, 246, 0.06)',
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.1)',
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
 
   heroTitle: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 8,
     letterSpacing: -0.3,
   },
 
   heroSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '400',
-    color: '#9CA3AF',
+    color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 21,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+
+  stepIndicator: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+
+  stepIndicatorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3B82F6',
+    letterSpacing: 0.2,
   },
 
   // Setup Section
@@ -308,63 +489,62 @@ const styles = StyleSheet.create({
   },
 
   sectionLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#B4B8C1',
+    color: '#9CA3AF',
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 12,
+    letterSpacing: 0.5,
+    marginBottom: 14,
   },
 
   setupCardsContainer: {
-    gap: 10,
+    gap: 12,
   },
 
   // Setup Cards
   setupCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    gap: 12,
-    minHeight: 86,
+    borderWidth: 1.5,
+    gap: 14,
+    minHeight: 88,
     shadowColor: '#000',
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
 
   setupCardActive: {
-    borderColor: 'rgba(59, 130, 246, 0.2)',
+    borderColor: 'rgba(59, 130, 246, 0.4)',
     backgroundColor: '#FFFFFF',
   },
 
   setupCardDisabled: {
-    borderColor: 'rgba(59, 130, 246, 0.2)',
+    borderColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
-    opacity: 1,
   },
 
   // Icon Container
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
   },
 
   iconContainerActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
   },
 
   iconContainerDisabled: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    backgroundColor: 'rgba(156, 163, 175, 0.1)',
   },
 
   // Card Content
