@@ -1,20 +1,43 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Keychain from 'react-native-keychain';
 
+// Device type enumeration
+export type DeviceType = 'smart_switch_1_relay' | 'smart_switch_4_relay' | 'smart_plug' | 'sensor' | 'unknown';
+
+// Normalized, backward-compatible device model
 export interface ProvisionedDevice {
-  id: string;
-  name: string; // Internal provisioning ID (e.g., PROV_26B7B3F8)
-  displayName?: string; // User-friendly display name (e.g., "Living Room Hub")
-  roomName?: string; // Room/location name (e.g., "Living room", "Kitchen")
-  deviceType?: string; // Optional device type (e.g., "smart_switch_4_relay")
-  relayNames?: { [key: string]: string }; // Optional relay names for multi-relay devices
-  macAddress: string;
-  mqttDeviceId?: string; // ✅ MQTT device ID for topic usage
-  ssid: string;
-  status: 'connecting' | 'online' | 'offline';
-  lastSeen: string;
-  provisionedAt: string;
-  justProvisioned?: boolean;
+  // Core identifiers
+  id: string; // Primary unique identifier (local)
+  bleId?: string; // BLE native identifier (e.g., MAC address from BLE)
+  mqttDeviceId: string; // MQTT topic device ID (required for MQTT communication)
+
+  // User-facing names
+  name: string; // Internal/fallback name (e.g., "PROV_26B7B3F8")
+  displayName: string; // User-friendly name (e.g., "Living Room Hub")
+  roomName: string; // Room/location name (defaults to "Unassigned")
+
+  // Device configuration
+  deviceType: DeviceType; // Device type classification
+  relayCount: number; // Number of relays (1, 4, or 0 for non-switches)
+  relayNames?: {
+    relay1?: string;
+    relay2?: string;
+    relay3?: string;
+    relay4?: string;
+  }; // Optional relay names for multi-relay devices
+
+  // Connection information
+  macAddress?: string; // MAC address (optional)
+  ssid?: string; // WiFi SSID (optional)
+  status: 'connecting' | 'online' | 'offline'; // Current connection status
+  firmwareVersion?: string; // Device firmware version
+
+  // Timestamps
+  lastSeen: string; // ISO timestamp of last activity
+  provisionedAt: string; // ISO timestamp of provisioning
+
+  // UI state
+  justProvisioned?: boolean; // Flag for recent provisioning
 }
 
 export interface SavedNetwork {
@@ -27,9 +50,117 @@ const PROVISIONED_DEVICES_KEY = '@SmartHome_ProvisionedDevices';
 const SAVED_NETWORKS_KEY = '@SmartHome_SavedNetworks';
 const KEYCHAIN_SERVICE = 'SmartHomeApp_WiFiCredentials';
 
+/**
+ * Normalize a device from old or partial format to the clean ProvisionedDevice model
+ * Handles backward compatibility with old saved devices
+ */
+export function normalizeProvisionedDevice(device: any): ProvisionedDevice {
+  if (!device) {
+    throw new Error('Cannot normalize null or undefined device');
+  }
+
+  // Generate a safe fallback value
+  const generateFallbackId = () => `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Extract primary ID - try multiple sources
+  const id = device.id || device.bleId || device.mqttDeviceId || device.name || generateFallbackId();
+
+  // Extract BLE ID
+  const bleId = device.bleId || (typeof device.id === 'string' && device.id.length > 10 ? device.id : undefined);
+
+  // Extract MQTT Device ID - critical for MQTT communication
+  const mqttDeviceId = device.mqttDeviceId || device.deviceId || extractMqttIdFromName(device.name) || id;
+
+  // Extract names with fallbacks
+  const name = device.name || device.displayName || mqttDeviceId || 'Smart Device';
+  const displayName = device.displayName || device.name || mqttDeviceId || 'Smart Device';
+
+  // Extract room - default to Unassigned
+  const roomName = (device.roomName && typeof device.roomName === 'string' && device.roomName.trim())
+    ? device.roomName.trim()
+    : 'Unassigned';
+
+  // Extract and validate device type
+  const validDeviceTypes: DeviceType[] = ['smart_switch_1_relay', 'smart_switch_4_relay', 'smart_plug', 'sensor', 'unknown'];
+  const deviceType: DeviceType = (device.deviceType && validDeviceTypes.includes(device.deviceType))
+    ? device.deviceType
+    : 'unknown';
+
+  // Calculate relay count
+  let relayCount = 0;
+  if (typeof device.relayCount === 'number') {
+    relayCount = device.relayCount;
+  } else if (deviceType === 'smart_switch_4_relay') {
+    relayCount = 4;
+  } else if (deviceType === 'smart_switch_1_relay' || deviceType === 'smart_plug') {
+    relayCount = 1;
+  } else {
+    relayCount = 0;
+  }
+
+  // Preserve relay names if valid
+  const relayNames = (device.relayNames && typeof device.relayNames === 'object')
+    ? device.relayNames
+    : undefined;
+
+  // Extract optional fields
+  const macAddress = device.macAddress || undefined;
+  const ssid = device.ssid || undefined;
+  const firmwareVersion = device.firmwareVersion || device.fw || undefined;
+
+  // Validate status
+  const validStatuses = ['connecting', 'online', 'offline'];
+  const status: 'connecting' | 'online' | 'offline' = (device.status && validStatuses.includes(device.status))
+    ? device.status
+    : 'offline';
+
+  // Get timestamps - use current ISO string if missing
+  const now = new Date().toISOString();
+  const lastSeen = device.lastSeen || now;
+  const provisionedAt = device.provisionedAt || now;
+
+  // Preserve justProvisioned flag
+  const justProvisioned = device.justProvisioned || false;
+
+  const normalized: ProvisionedDevice = {
+    id,
+    bleId,
+    mqttDeviceId,
+    name,
+    displayName,
+    roomName,
+    deviceType,
+    relayCount,
+    relayNames,
+    macAddress,
+    ssid,
+    status,
+    firmwareVersion,
+    lastSeen,
+    provisionedAt,
+    justProvisioned,
+  };
+
+  return normalized;
+}
+
+/**
+ * Extract MQTT device ID from device name if it follows pattern like "PROV_26B7B3F8"
+ */
+function extractMqttIdFromName(name: string): string | null {
+  if (!name || typeof name !== 'string') {
+    return null;
+  }
+
+  // Try to extract from patterns like "PROV_26B7B3F8" or "device_26B7B3F8"
+  const match = name.match(/(?:PROV|device)_([A-F0-9]+)/i);
+  return match ? match[1] : null;
+}
+
 class StorageService {
   /**
    * Get all provisioned devices from local storage
+   * Automatically normalizes old/corrupted data for backward compatibility
    */
   async getProvisionedDevices(): Promise<ProvisionedDevice[]> {
     try {
@@ -39,9 +170,52 @@ class StorageService {
         return [];
       }
 
-      const devices = JSON.parse(data) as ProvisionedDevice[];
-      console.log('[Storage] Retrieved provisioned devices:', devices.length);
-      return devices;
+      let devices: any[] = [];
+      try {
+        devices = JSON.parse(data);
+      } catch (parseError) {
+        console.error('[Storage] JSON parse error, returning empty list:', parseError);
+        return [];
+      }
+
+      // Ensure data is an array
+      if (!Array.isArray(devices)) {
+        console.error('[Storage] Stored data is not an array, returning empty list');
+        return [];
+      }
+
+      // Normalize all devices for backward compatibility
+      let normalizedDevices: ProvisionedDevice[] = [];
+      let hasMigrationChanges = false;
+
+      for (const device of devices) {
+        try {
+          const normalized = normalizeProvisionedDevice(device);
+          normalizedDevices.push(normalized);
+
+          // Check if normalization changed the data
+          if (JSON.stringify(device) !== JSON.stringify(normalized)) {
+            hasMigrationChanges = true;
+          }
+        } catch (normalizeError) {
+          console.error('[Storage] Failed to normalize device, skipping:', normalizeError, device);
+          continue;
+        }
+      }
+
+      // Write back normalized data if migration occurred
+      if (hasMigrationChanges && normalizedDevices.length > 0) {
+        console.log('[Storage] Device model migration detected, writing normalized data');
+        try {
+          await AsyncStorage.setItem(PROVISIONED_DEVICES_KEY, JSON.stringify(normalizedDevices));
+        } catch (writeError) {
+          console.error('[Storage] Failed to write migrated data:', writeError);
+          // Still return normalized devices even if write fails
+        }
+      }
+
+      console.log('[Storage] Retrieved provisioned devices:', normalizedDevices.length);
+      return normalizedDevices;
     } catch (error) {
       console.error('[Storage] Error getting provisioned devices:', error);
       return [];
@@ -50,19 +224,26 @@ class StorageService {
 
   /**
    * Add or update a provisioned device
+   * Normalizes incoming device data for consistency
    */
-  async addProvisionedDevice(device: ProvisionedDevice): Promise<void> {
+  async addProvisionedDevice(device: any): Promise<void> {
     try {
+      // Normalize the incoming device
+      const normalizedDevice = normalizeProvisionedDevice(device);
+
       const devices = await this.getProvisionedDevices();
 
-      // Check if device already exists and update it
-      const existingIndex = devices.findIndex(d => d.id === device.id);
+      // Check if device already exists by id
+      const existingIndex = devices.findIndex(d => d.id === normalizedDevice.id);
+
       if (existingIndex >= 0) {
-        devices[existingIndex] = device;
-        console.log('[Storage] Updated existing device:', device.id);
+        // Update existing device - preserve old fields and merge with new
+        devices[existingIndex] = { ...devices[existingIndex], ...normalizedDevice };
+        console.log('[Storage] Updated existing device:', normalizedDevice.id);
       } else {
-        devices.push(device);
-        console.log('[Storage] Added new device:', device.id);
+        // Add new device
+        devices.push(normalizedDevice);
+        console.log('[Storage] Added new device:', normalizedDevice.id);
       }
 
       await AsyncStorage.setItem(PROVISIONED_DEVICES_KEY, JSON.stringify(devices));
@@ -360,6 +541,50 @@ class StorageService {
     } catch (error) {
       console.error('[Storage] Error grouping devices:', error);
       return {};
+    }
+  }
+
+  /**
+   * Get device by ID
+   */
+  async getDeviceById(deviceId: string): Promise<ProvisionedDevice | null> {
+    try {
+      const devices = await this.getProvisionedDevices();
+      const device = devices.find(d => d.id === deviceId);
+      return device || null;
+    } catch (error) {
+      console.error('[Storage] Error getting device by ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get device by MQTT device ID
+   */
+  async getDeviceByMqttId(mqttDeviceId: string): Promise<ProvisionedDevice | null> {
+    try {
+      const devices = await this.getProvisionedDevices();
+      const device = devices.find(d => d.mqttDeviceId === mqttDeviceId);
+      return device || null;
+    } catch (error) {
+      console.error('[Storage] Error getting device by MQTT ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if device exists by ID or MQTT Device ID
+   */
+  async deviceExists(deviceIdOrMqttId: string): Promise<boolean> {
+    try {
+      const devices = await this.getProvisionedDevices();
+      const exists = devices.some(
+        d => d.id === deviceIdOrMqttId || d.mqttDeviceId === deviceIdOrMqttId
+      );
+      return exists;
+    } catch (error) {
+      console.error('[Storage] Error checking device existence:', error);
+      return false;
     }
   }
 }

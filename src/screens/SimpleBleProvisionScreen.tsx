@@ -641,11 +641,10 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
     try {
       console.log('[SimpleBLE] Device selected:', device.name, 'MAC:', device.id);
       
-      // Use BLE MAC address as device ID for now
-      // Device ID will be read during WiFi provisioning
-      navigation.navigate('WiFiProvisioning', {
-        deviceId: device.id,        // Use MAC address as device ID
-        macAddress: device.id,      // Store MAC for reference
+      // Navigate to DeviceConfig screen
+      navigation.navigate('DeviceConfig', {
+        deviceId: device.id,
+        macAddress: device.id,
         deviceName: device.name,
         rssi: device.rssi,
       });
@@ -738,11 +737,11 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
             </View>
           </View>
 
-          {/* Stop Search Button */}
-          <TouchableOpacity style={styles.stopSearchButton} onPress={stopScanning}>
+          {/* Stop Search Button - HIDDEN */}
+          {/* <TouchableOpacity style={styles.stopSearchButton} onPress={stopScanning}>
             <View style={styles.stopButtonIcon} />
             <Text style={styles.stopSearchButtonText}>Stop search</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           {/* Help Link */}
           <TouchableOpacity style={styles.helpLinkContainer}>
@@ -948,7 +947,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
           
           <View style={styles.troubleshootingCard}>
             <View style={styles.troubleshootingHeader}>
-              <Icon name="lightbulb" size={18} color="#3B82F6" />
+              <Icon name="help-circle" size={20} color="#3B82F6" />
               <Text style={styles.troubleshootingTitle}>Try these steps</Text>
             </View>
 
@@ -959,7 +958,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
               </View>
               <View style={styles.tipContent}>
                 <Text style={styles.tipMainText}>Power cycle your device</Text>
-                <Text style={styles.tipSubText}>— turn it off and back on, then try again.</Text>
+                <Text style={styles.tipSubText}>Turn it off and back on, then try again.</Text>
               </View>
             </View>
 
@@ -970,7 +969,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
               </View>
               <View style={styles.tipContent}>
                 <Text style={styles.tipMainText}>Move closer</Text>
-                <Text style={styles.tipSubText}>— stay within 1-2 metres during pairing.</Text>
+                <Text style={styles.tipSubText}>Stay within 1-2 metres of the device for a stronger signal.</Text>
               </View>
             </View>
 
@@ -981,7 +980,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
               </View>
               <View style={styles.tipContent}>
                 <Text style={styles.tipMainText}>Enable Bluetooth & location</Text>
-                <Text style={styles.tipSubText}>— both are required for scanning.</Text>
+                <Text style={styles.tipSubText}>Both are required for scanning.</Text>
               </View>
             </View>
           </View>
@@ -1740,32 +1739,35 @@ const styles = StyleSheet.create({
   },
 
   troubleshootingCard: {
-    marginHorizontal: 16,
+    marginHorizontal: 0,
     marginBottom: 24,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 0,
+    borderWidth: 0,
     borderColor: '#E5E7EB',
   },
 
   troubleshootingHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
 
   troubleshootingTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#1F2937',
   },
 
   tipItem: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 14,
     marginBottom: 14,
     alignItems: 'flex-start',
   },
@@ -1793,16 +1795,16 @@ const styles = StyleSheet.create({
 
   tipMainText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 2,
+    marginBottom: 3,
   },
 
   tipSubText: {
     fontSize: 12,
     fontWeight: '400',
-    color: '#9CA3AF',
-    lineHeight: 16,
+    color: '#6B7280',
+    lineHeight: 17,
   },
 
   // Error

@@ -165,7 +165,60 @@ const isConnected = mqttService.isConnectedToMQTT();
 
 ---
 
-## 10. Key Implementation Files
+## 10. Notifications via MQTT
+
+### Device Status Notifications
+
+When device status changes via MQTT, the notification system is triggered:
+
+```typescript
+// In deviceDataService.ts
+mqttService.subscribe(`esp32/${deviceId}/status`, (message) => {
+  const status = message === 'online' ? 'online' : 'offline';
+  
+  if (status === 'online') {
+    notificationService.addNotification({
+      type: 'device',
+      title: 'Device Online',
+      message: `${deviceName} is now connected`,
+      deviceId,
+      deviceName,
+    });
+  } else {
+    notificationService.addNotification({
+      type: 'offline',
+      title: 'Device Offline',
+      message: `${deviceName} is disconnected`,
+      deviceId,
+      deviceName,
+    });
+  }
+});
+```
+
+### Notification Preferences
+
+Notifications can be filtered by type. Users can configure which notifications to receive:
+
+- **Device**: Online/offline, connection status
+- **Firmware**: Updates, alerts
+- **Activity**: User actions, device events
+- **Security**: Access attempts
+- **Offline**: Offline alerts
+- **Automation**: Automation triggers
+
+### Notification Service Integration
+
+The notification service persists to AsyncStorage and provides:
+- Unread count badge
+- Mark as read / Mark all as read
+- Delete individual / Clear all
+- Persistent storage (max 100 notifications)
+- Type-based filtering and preferences
+
+---
+
+## 11. Key Implementation Files
 
 ### mqttService.ts
 - Manages MQTT connection
@@ -178,6 +231,12 @@ const isConnected = mqttService.isConnectedToMQTT();
 - Normalizes field names
 - Methods: subscribe(), updateLEDStatus(), updateRelayStatus()
 
+### notificationService.ts
+- Manages notification persistence
+- Provides subscription/listener pattern
+- Methods: addNotification(), markAsRead(), deleteNotification(), clearAll()
+- Stores preferences per notification type
+
 ### ControllerScreen.tsx
 - Displays LED/relay controls
 - Sends commands via deviceDataService
@@ -185,7 +244,7 @@ const isConnected = mqttService.isConnectedToMQTT();
 
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 ### MQTT Connection Not Established
 - Check internet connection

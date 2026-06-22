@@ -1,15 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Animated,
-  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { width, height } = Dimensions.get('window');
+import Icon from 'react-native-vector-icons/Feather';
 
 interface ProvisioningSuccessScreenProps {
   navigation: any;
@@ -21,125 +19,126 @@ const ProvisioningSuccessScreen: React.FC<ProvisioningSuccessScreenProps> = ({
   route,
 }) => {
   const insets = useSafeAreaInsets();
-  const { deviceName } = route.params || { deviceName: 'Device' };
-
-  // Animations
-  const scaleAnim = new Animated.Value(0);
-  const opacityAnim = new Animated.Value(0);
-  const checkmarkScale = new Animated.Value(0);
-  const slideUpAnim = new Animated.Value(50);
-  const textOpacity = new Animated.Value(0);
-
-  useEffect(() => {
-    // Success icon animation
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.parallel([
-        Animated.timing(checkmarkScale, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-
-    // Text animation
-    Animated.sequence([
-      Animated.delay(400),
-      Animated.parallel([
-        Animated.timing(slideUpAnim, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(textOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, []);
-
-  const handleGoToDashboard = () => {
-    navigation.navigate('HomeMain');
+  const { deviceName, displayName } = route.params || { 
+    deviceName: 'Device',
+    displayName: 'Device'
   };
 
+  // Animations
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const checkScaleAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+
+  useEffect(() => {
+    // Sequence of animations
+    Animated.sequence([
+      // Scale in the circle
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      // Fade in text
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      // Scale in checkmark
+      Animated.timing(checkScaleAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      // Slide up subtitle
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      // Wait before transitioning
+      Animated.delay(1500),
+    ]).start(() => {
+      // Navigate to HomeScreen
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'HomeMain',
+            params: {
+              justProvisioned: true,
+              deviceName: displayName || deviceName,
+            },
+          },
+        ],
+      });
+    });
+  }, []);
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Success Icon */}
-      <View style={styles.iconContainer}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F4F7FB" />
+
+      {/* Success Circle with Checkmark */}
+      <View style={styles.centerContent}>
+        {/* Animated Circle Background */}
         <Animated.View
           style={[
             styles.successCircle,
             {
               transform: [{ scale: scaleAnim }],
-              opacity: opacityAnim,
             },
           ]}
         >
-          <Animated.Text
+          {/* Checkmark Icon */}
+          <Animated.View
             style={[
-              styles.successIcon,
+              styles.checkmarkContainer,
               {
-                transform: [{ scale: checkmarkScale }],
+                transform: [{ scale: checkScaleAnim }],
               },
             ]}
           >
-            ✓
-          </Animated.Text>
+            <Icon name="check" size={56} color="#FFFFFF" strokeWidth={3} />
+          </Animated.View>
         </Animated.View>
-      </View>
 
-      {/* Content */}
-      <Animated.View
-        style={[
-          styles.content,
-          {
-            transform: [{ translateY: slideUpAnim }],
-            opacity: textOpacity,
-          },
-        ]}
-      >
-        <Text style={styles.title}>Device Connected Successfully</Text>
-        <Text style={styles.subtitle}>
-          {deviceName} is now ready to use. You can control it from your dashboard.
-        </Text>
-
-        {/* Device Illustration */}
-        <View style={styles.illustrationContainer}>
-          <Text style={styles.illustrationText}>Success</Text>
-        </View>
-
-        {/* Info Box */}
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>What's Next?</Text>
-          <Text style={styles.infoText}>
-            • Your device is connected to WiFi{'\n'}
-            • It will appear on your dashboard{'\n'}
-            • You can now control it remotely
-          </Text>
-        </View>
-      </Animated.View>
-
-      {/* Button */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={styles.dashboardButton}
-          onPress={handleGoToDashboard}
-          activeOpacity={0.8}
+        {/* Success Message */}
+        <Animated.View
+          style={[
+            styles.messageContainer,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
         >
-          <Text style={styles.dashboardButtonText}>Go to Dashboard</Text>
-        </TouchableOpacity>
+          <Text style={styles.successTitle}>Device Added!</Text>
+          <Animated.View
+            style={[
+              styles.subtitleContainer,
+              {
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            <Text style={styles.successSubtitle}>
+              {displayName || deviceName} is ready to use
+            </Text>
+          </Animated.View>
+        </Animated.View>
+
+        {/* Loading Indicator */}
+        <Animated.View
+          style={[
+            styles.loadingIndicator,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <Text style={styles.loadingText}>Taking you to home...</Text>
+        </Animated.View>
       </View>
     </View>
   );
@@ -148,16 +147,17 @@ const ProvisioningSuccessScreen: React.FC<ProvisioningSuccessScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  iconContainer: {
-    flex: 1,
+    backgroundColor: '#F4F7FB',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 40,
   },
+
+  centerContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+
   successCircle: {
     width: 120,
     height: 120,
@@ -166,83 +166,52 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#10B981',
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    elevation: 12,
+    marginBottom: 32,
   },
-  successIcon: {
-    fontSize: 64,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  content: {
-    flex: 1,
+
+  checkmarkContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    textAlign: 'center',
+
+  messageContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+
+  successTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
-  subtitle: {
-    fontSize: 14,
+
+  subtitleContainer: {
+    alignItems: 'center',
+  },
+
+  successSubtitle: {
+    fontSize: 15,
+    fontWeight: '500',
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 32,
+    lineHeight: 22,
   },
-  illustrationContainer: {
-    marginBottom: 32,
+
+  loadingIndicator: {
+    marginTop: 24,
   },
-  illustration: {
-    fontSize: 80,
+
+  loadingText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#9CA3AF',
     textAlign: 'center',
-  },
-  infoBox: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    width: '100%',
-  },
-  infoTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#15803D',
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 12,
-    color: '#166534',
-    lineHeight: 18,
-  },
-  buttonContainer: {
-    paddingBottom: 40,
-  },
-  dashboardButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  dashboardButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
 });
 

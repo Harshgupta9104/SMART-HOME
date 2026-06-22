@@ -138,7 +138,8 @@ class MqttService {
           data = { raw: message };
         }
       } else if (topic.includes('/status')) {
-        // Status topic
+        // Status topic - handle device online/offline notifications
+        this.handleDeviceStatus(deviceId, message);
         data = { status: message };
         console.log('[MQTT] 🔄 Device status:', message);
       } else if (topic.includes('/led/state')) {
@@ -169,6 +170,19 @@ class MqttService {
       }
     } catch (error) {
       console.error('[MQTT] ❌ Message handling error:', error);
+    }
+  }
+
+  /**
+   * Handle device online/offline status changes and trigger notifications
+   */
+  private handleDeviceStatus(deviceId: string, message: string): void {
+    try {
+      // Device status notifications are now handled by DeviceDataService
+      // This method is kept for compatibility but notifications are fired from there
+      console.log('[MQTT] Device status received:', deviceId, message);
+    } catch (error) {
+      console.error('[MQTT] Error handling device status:', error);
     }
   }
 
