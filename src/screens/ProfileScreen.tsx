@@ -2,7 +2,6 @@ import React from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   StatusBar,
@@ -10,9 +9,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
+import { useTheme } from '../context/ThemeContext';
 
 const ProfileScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
+  const { theme, isDark } = useTheme();
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -24,480 +25,246 @@ const ProfileScreen = ({ navigation }: any) => {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F7FB" />
+    <View className="flex-1" style={{ backgroundColor: theme.background, paddingTop: insets.top }}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
+      <View className="px-5 py-4">
+        <Text className="text-4xl font-extrabold" style={{ color: theme.textPrimary, letterSpacing: -1 }}>
+          Profile
+        </Text>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
         {/* User Profile Card */}
-        <View style={styles.userCard}>
-          <View style={styles.userAvatarContainer}>
-            <Text style={styles.userAvatar}>U</Text>
+        <View className="rounded-3xl p-5 mb-5 flex-row items-center gap-4" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+          <View className="w-16 h-16 rounded-full items-center justify-center" style={{ backgroundColor: theme.primary }}>
+            <Text className="text-2xl font-bold" style={{ color: theme.surface }}>U</Text>
           </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>User</Text>
-            <Text style={styles.userEmail}>user@example.com</Text>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>Home Owner</Text>
+          <View className="flex-1 gap-1">
+            <Text className="text-base font-bold" style={{ color: theme.textPrimary }}>User</Text>
+            <Text className="text-sm" style={{ color: theme.textSecondary }}>user@example.com</Text>
+            <View className="rounded-2xl px-2.5 py-1 self-start mt-1" style={{ backgroundColor: theme.primarySoft }}>
+              <Text className="text-xs font-semibold" style={{ color: theme.primary }}>Home Owner</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.editButton}>
-            <Icon name="edit-2" size={16} color="#3B82F6" />
-            <Text style={styles.editButtonText}>Edit</Text>
+          <TouchableOpacity className="flex-row items-center gap-1.5 px-3 py-2 rounded-2xl border" style={{ borderColor: theme.primary }}>
+            <Icon name="edit-2" size={16} color={theme.primary} />
+            <Text className="text-xs font-semibold" style={{ color: theme.primary }}>Edit</Text>
           </TouchableOpacity>
         </View>
 
-        {/* My Home Section */}
-        <View style={styles.homeCard}>
-          <View style={styles.homeHeader}>
-            <Icon name="home" size={20} color="#3B82F6" />
-            <Text style={styles.homeTitle}>My Home</Text>
+        {/* Home Card */}
+        <View className="rounded-3xl p-5 mb-6" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+          <View className="flex-row items-center gap-3 mb-4">
+            <Icon name="home" size={20} color={theme.primary} />
+            <Text className="text-base font-bold" style={{ color: theme.textPrimary }}>My Home</Text>
           </View>
-          <View style={styles.homeStats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>1</Text>
-              <Text style={styles.statLabel}>Device</Text>
+          <View className="flex-row gap-3 justify-between">
+            <View className="flex-1 rounded-2xl py-4 items-center gap-1" style={{ backgroundColor: theme.surface }}>
+              <Text className="text-lg font-bold" style={{ color: theme.textPrimary }}>1</Text>
+              <Text className="text-xs font-medium" style={{ color: theme.textMuted }}>Device</Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>1</Text>
-              <Text style={styles.statLabel}>Online</Text>
+            <View className="flex-1 rounded-2xl py-4 items-center gap-1" style={{ backgroundColor: theme.surface }}>
+              <Text className="text-lg font-bold" style={{ color: theme.textPrimary }}>1</Text>
+              <Text className="text-xs font-medium" style={{ color: theme.textMuted }}>Online</Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>0</Text>
-              <Text style={styles.statLabel}>Rooms</Text>
+            <View className="flex-1 rounded-2xl py-4 items-center gap-1" style={{ backgroundColor: theme.surface }}>
+              <Text className="text-lg font-bold" style={{ color: theme.textPrimary }}>0</Text>
+              <Text className="text-xs font-medium" style={{ color: theme.textMuted }}>Rooms</Text>
             </View>
           </View>
         </View>
 
         {/* Home Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>HOME SETTINGS</Text>
+        <View className="mb-6">
+          <Text className="text-xs font-bold mb-3 px-1" style={{ color: theme.textMuted, letterSpacing: 0.5 }}>HOME SETTINGS</Text>
           
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="home" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="home" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Manage Home</Text>
-              <Text style={styles.menuSubtitle}>Edit home name and details</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Manage Home</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Edit home name and details</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="grid" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="grid" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Rooms</Text>
-              <Text style={styles.menuSubtitle}>Organize devices by room</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Rooms</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Organize devices by room</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="users" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="users" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Family Members</Text>
-              <Text style={styles.menuSubtitle}>Manage home access</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Family Members</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Manage home access</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="smartphone" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="smartphone" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Device Management</Text>
-              <Text style={styles.menuSubtitle}>View and control all devices</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Device Management</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>View and control all devices</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
         </View>
 
         {/* App Preferences Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>APP PREFERENCES</Text>
+        <View className="mb-6">
+          <Text className="text-xs font-bold mb-3 px-1" style={{ color: theme.textMuted, letterSpacing: 0.5 }}>APP PREFERENCES</Text>
           
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="bell" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="bell" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Notifications</Text>
-              <Text style={styles.menuSubtitle}>Manage alerts and device updates</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Notifications</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Manage alerts and device updates</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="moon" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="moon" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Theme</Text>
-              <Text style={styles.menuSubtitle}>Light, Dark or System</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Theme</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Light, Dark or System</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="globe" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="globe" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Language</Text>
-              <Text style={styles.menuSubtitle}>English (Default)</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Language</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>English (Default)</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="eye" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="eye" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>App Appearance</Text>
-              <Text style={styles.menuSubtitle}>Font size and display settings</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>App Appearance</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Font size and display settings</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
         </View>
 
         {/* Device & System Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>DEVICE & SYSTEM</Text>
+        <View className="mb-6">
+          <Text className="text-xs font-bold mb-3 px-1" style={{ color: theme.textMuted, letterSpacing: 0.5 }}>DEVICE & SYSTEM</Text>
           
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="file-text" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="file-text" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Device Logs</Text>
-              <Text style={styles.menuSubtitle}>Activity and event history</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Device Logs</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Activity and event history</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="refresh-cw" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="refresh-cw" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Firmware Updates</Text>
-              <Text style={styles.menuSubtitle}>Keep devices up to date</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Firmware Updates</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Keep devices up to date</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="wifi" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="wifi" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Network Settings</Text>
-              <Text style={styles.menuSubtitle}>Wi-Fi and connectivity</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Network Settings</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Wi-Fi and connectivity</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="help-circle" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="help-circle" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Help & Support</Text>
-              <Text style={styles.menuSubtitle}>FAQs and contact us</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Help & Support</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>FAQs and contact us</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
         </View>
 
         {/* Account Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ACCOUNT</Text>
+        <View className="mb-6">
+          <Text className="text-xs font-bold mb-3 px-1" style={{ color: theme.textMuted, letterSpacing: 0.5 }}>ACCOUNT</Text>
           
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="shield" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="shield" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Privacy & Security</Text>
-              <Text style={styles.menuSubtitle}>Password and data settings</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Privacy & Security</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Password and data settings</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <Icon name="file" size={20} color="#3B82F6" />
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
+              <Icon name="file" size={20} color={theme.primary} />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>Terms & Policies</Text>
-              <Text style={styles.menuSubtitle}>Legal and privacy documents</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Terms & Policies</Text>
+              <Text className="text-xs" style={{ color: theme.textMuted }}>Legal and privacy documents</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.menuItem, styles.logoutItem]} onPress={handleLogout}>
-            <View style={[styles.menuIconContainer, styles.logoutIconContainer]}>
+          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }} onPress={handleLogout}>
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: '#EF4444' + '20' }}>
               <Icon name="log-out" size={20} color="#EF4444" />
             </View>
-            <View style={styles.menuContent}>
-              <Text style={[styles.menuTitle, styles.logoutText]}>Logout</Text>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-semibold" style={{ color: '#EF4444' }}>Logout</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#D1D5DB" />
+            <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
         </View>
 
         {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
+        <View className="h-24" />
       </ScrollView>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F7FB',
-  },
-
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#111827',
-    letterSpacing: -1,
-  },
-
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-
-  // User Card
-  userCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-
-  userAvatarContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  userAvatar: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  userInfo: {
-    flex: 1,
-    gap: 4,
-  },
-
-  userName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  userEmail: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-
-  roleBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-
-  roleBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#3B82F6',
-  },
-
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#3B82F6',
-  },
-
-  editButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#3B82F6',
-  },
-
-  // Home Card
-  homeCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-
-  homeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-
-  homeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  homeStats: {
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-  },
-
-  statItem: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-    gap: 4,
-  },
-
-  statNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  statLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontWeight: '500',
-  },
-
-  // Sections
-  section: {
-    marginBottom: 24,
-  },
-
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#9CA3AF',
-    letterSpacing: 1,
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-
-  // Menu Items
-  menuItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-
-  menuIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  menuContent: {
-    flex: 1,
-    gap: 2,
-  },
-
-  menuTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-
-  menuSubtitle: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-
-  // Logout Item
-  logoutItem: {
-    backgroundColor: 'rgba(239, 68, 68, 0.05)',
-  },
-
-  logoutIconContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-  },
-
-  logoutText: {
-    color: '#EF4444',
-  },
-
-  // Bottom Spacing
-  bottomSpacing: {
-    height: 100,
-  },
-});
 
 export default ProfileScreen;
