@@ -28,6 +28,8 @@ interface UseProvisioningReturn {
     ssid: string,
     password: string,
     rememberNetwork: boolean,
+    displayName?: string,
+    roomName?: string,
     onProvisioningComplete?: (deviceId: string, deviceName: string) => void
   ) => Promise<void>;
   retryProvisioning: () => void;
@@ -103,6 +105,8 @@ export const useProvisioning = (): UseProvisioningReturn => {
       rememberNetwork: boolean,
       deviceId: string,
       deviceName: string,
+      displayName: string,
+      roomName: string,
       mqttDeviceId: string | null,
       onProvisioningComplete?: (deviceId: string, deviceName: string) => void
     ) => {
@@ -134,6 +138,8 @@ export const useProvisioning = (): UseProvisioningReturn => {
           const device = {
             id: deviceId,
             name: deviceName,
+            displayName: displayName || deviceName, // User-friendly name from DeviceConfig
+            roomName: roomName || 'Other', // Room from DeviceConfig
             macAddress: deviceId,
             mqttDeviceId: mqttDeviceId || deviceId, // ✅ SAVE MQTT DEVICE ID
             ssid: ssid,
@@ -154,11 +160,11 @@ export const useProvisioning = (): UseProvisioningReturn => {
         cleanup();
         setIsLoading(false);
 
-        // Trigger navigation to dashboard
+        // Trigger navigation to success screen
         if (onProvisioningComplete) {
-          console.log('[Provisioning] Navigating to dashboard...');
+          console.log('[Provisioning] Navigating to success screen...');
           setTimeout(() => {
-            onProvisioningComplete(deviceId, deviceName);
+            onProvisioningComplete(deviceId, displayName || deviceName);
           }, 500); // Small delay for smooth transition
         }
       }
@@ -195,6 +201,8 @@ export const useProvisioning = (): UseProvisioningReturn => {
       ssid: string,
       password: string,
       rememberNetwork: boolean,
+      displayName?: string,
+      roomName?: string,
       onProvisioningComplete?: (deviceId: string, deviceName: string) => void
     ) => {
       try {
@@ -239,7 +247,19 @@ export const useProvisioning = (): UseProvisioningReturn => {
               // Pass the captured MQTT device ID to handleStatusUpdate
               // Use the returned ID if available, otherwise use the captured one
               const finalMqttId = returnedMqttId || capturedMqttDeviceId;
-              handleStatusUpdate(status, isError, ssid, password, rememberNetwork, deviceId, deviceName, finalMqttId, onProvisioningComplete);
+              handleStatusUpdate(
+                status,
+                isError,
+                ssid,
+                password,
+                rememberNetwork,
+                deviceId,
+                deviceName,
+                displayName || deviceName,
+                roomName || 'Other',
+                finalMqttId,
+                onProvisioningComplete
+              );
             }
           }
         );

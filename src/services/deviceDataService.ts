@@ -4,6 +4,8 @@
  */
 
 import { getMQTTService } from './mqttService';
+import { getNotificationService } from './notificationService';
+import { parseRelayState, parseDeviceStatus } from '../utils/notificationHelpers';
 
 export interface DeviceMetrics {
   deviceId: string;
@@ -26,6 +28,8 @@ class DeviceDataService {
   private metricsCache: Map<string, DeviceMetrics> = new Map();
   private listeners: Map<string, Set<DeviceDataListener>> = new Map();
   private mqttUnsubscribers: Map<string, () => void> = new Map();
+  private deviceStatusCache: Map<string, 'online' | 'offline'> = new Map();
+  private deviceNameCache: Map<string, string> = new Map();
 
   /**
    * Subscribe to real-time metrics for a device
@@ -117,6 +121,12 @@ class DeviceDataService {
       // Update cache
       this.metricsCache.set(deviceId, metrics);
 
+      // Check for device status changes (online/offline)
+      this.handleDeviceStatusChange(deviceId, data);
+
+      // Check for relay state changes
+      this.handleRelayStateChange(deviceId, data);
+
       // Notify all listeners
       this.notifyListeners(deviceId, metrics);
 
@@ -140,6 +150,78 @@ class DeviceDataService {
         }
       });
     }
+  }
+
+  /**
+   * Handle device status changes (online/offline)
+   */
+  private async handleDeviceStatusChange(deviceId: string, data: any): Promise<void> {
+    const status = parseDeviceStatus(data);
+    if (!status) return;
+
+    const previousStatus = this.deviceStatusCache.get(deviceId);
+    
+    if (previousStatus === status) return; // No change
+
+    this.deviceStatusCache.set(deviceId, status);
+
+    const notificationService = getNotificationService();
+    const deviceName = this.deviceNameCache.get(deviceId) || `Device ${deviceId.slice(0, 8)}`;
+
+    if (status === 'online' && previousStatus === 'offline') {
+      await notificationService.addNotification(
+        'device_online',
+        '🟢 Device Online',
+        `${deviceName} is back online`,
+        'success',
+        { deviceId, deviceName, source: 'mqtt' }
+      );
+    } else if (status === 'offline') {
+      await notificationService.addNotification(
+        'device_offline',
+        '🔴 Device Offline',
+        `${deviceName} went offline`,
+        'warning',
+        { deviceId, deviceName, source: 'mqtt' }
+      );
+    }
+  }
+
+  /**
+   * Handle relay state changes
+   */
+  private async handleRelayStateChange(deviceId: string, data: any): Promise<void> {
+    const relayInfo = parseRelayState(data);
+    if (!relayInfo.state) return;
+
+    const notificationService = getNotificationService();
+    const deviceName = this.deviceNameCache.get(deviceId) || `Device ${deviceId.slice(0, 8)}`;
+
+    // Skip physical_switch events here, they're handled separately
+    if (relayInfo.source === 'physical' && data.event === 'physical_switch') {
+      await notificationService.addNotification(
+        'physical_switch',
+        '👆 Physical Switch Pressed',
+        `Relay ${relayInfo.relayNumber || 1} activated by physical switch`,
+        'info',
+        { deviceId, deviceName, relayNumber: relayInfo.relayNumber || 1, source: 'mqtt' }
+      );
+    } else if (relayInfo.state === 'ON' || relayInfo.state === 'OFF') {
+      await notificationService.addNotification(
+        'relay_changed',
+        `🔌 Relay ${relayInfo.state === 'ON' ? 'ON' : 'OFF'}`,
+        `Relay ${relayInfo.relayNumber || 1} turned ${relayInfo.state}`,
+        'info',
+        { deviceId, deviceName, relayNumber: relayInfo.relayNumber || 1, source: 'mqtt' }
+      );
+    }
+  }
+
+  /**
+   * Set device name for notifications (called by provisioning or home screen)
+   */
+  setDeviceName(deviceId: string, deviceName: string): void {
+    this.deviceNameCache.set(deviceId, deviceName);
   }
 
   /**

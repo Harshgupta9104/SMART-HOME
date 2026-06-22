@@ -6,537 +6,389 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  Animated,
+  TextInput,
+  Switch,
   Alert,
-  Linking,
+  Animated,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/Feather';
 import { getWiFiService, WiFiNetwork } from '../services/wifiService';
-import { getKeychainService } from '../services/keychainService';
 import { getPermissionService } from '../services/permissionService';
-import { WiFiError, WiFiErrorType } from '../services/wifiErrors';
 import { useProvisioning } from '../hooks/useProvisioning';
-import { ProvisioningState } from '../constants/provisioningStates';
-import WiFiSelector from '../components/provisioning/WiFiSelector';
-import PasswordInput from '../components/provisioning/PasswordInput';
-
-type ScreenState = 'loading' | 'permission_required' | 'location_disabled' | 'ready' | 'error';
 
 const WiFiProvisioningScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { deviceId, deviceName } = route.params;
+  const { deviceId, deviceName, displayName, roomName } = route.params;
 
-  // State
   const [wifiNetworks, setWifiNetworks] = useState<WiFiNetwork[]>([]);
-  const [currentSSID, setCurrentSSID] = useState<string | null>(null);
   const [selectedSSID, setSelectedSSID] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [rememberNetwork, setRememberNetwork] = useState(false);
-  const [screenState, setScreenState] = useState<ScreenState>('loading');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [errorType, setErrorType] = useState<WiFiErrorType | null>(null);
-  const [fadeAnim] = useState(new Animated.Value(0));
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberNetwork, setRememberNetwork] = useState(true);
+  const [autoReconnect, setAutoReconnect] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
-  // Services
+  // Success animation
+  const scaleAnim = new Animated.Value(0);
+  const fadeAnim = new Animated.Value(0);
+  const checkScaleAnim = new Animated.Value(0);
+
   const wifiService = getWiFiService();
-  const keychainService = getKeychainService();
   const permissionService = getPermissionService();
+  const { startProvisioning } = useProvisioning();
 
-  // Provisioning hook
-  const {
-    provisioningState,
-    startProvisioning,
-    cancelProvisioning,
-  } = useProvisioning();
-
-  // Initialize screen
+  // Load WiFi networks on mount
   useEffect(() => {
-    const initializeScreen = async () => {
-      try {
-        console.log('[WiFiProvisioning] ========== INITIALIZING SCREEN ==========');
-        console.log('[WiFiProvisioning] Device:', deviceName, 'ID:', deviceId);
-        
-        // Step 1: Check provisioning permissions
-        console.log('[WiFiProvisioning] Step 1: Checking provisioning permissions...');
-        const permsStatus = await permissionService.checkProvisioningPermissions();
-        console.log('[WiFiProvisioning] Permission check result:', permsStatus);
-
-        // Step 2: If permissions missing, request them
-        if (!permsStatus.allGranted) {
-          console.log('[WiFiProvisioning] Step 2: Permissions missing, requesting...');
-          setScreenState('permission_required');
-          setErrorType(WiFiErrorType.PERMISSION_DENIED);
-          setErrorMessage('WiFi scanning requires Bluetooth and Location permissions.');
-          return;
-        }
-
-        console.log('[WiFiProvisioning] ✅ Permissions already granted');
-
-        // Step 3: Scan networks
-        console.log('[WiFiProvisioning] Step 3: Scanning networks...');
-        try {
-          const scanResult = await wifiService.scanNetworks();
-          console.log('[WiFiProvisioning] ✅ Scan result:', {
-            networks: scanResult.networks.length,
-            currentDetected: scanResult.currentNetworkDetected,
-            nearbyDetected: scanResult.nearbyNetworksDetected,
-          });
-
-          setWifiNetworks(scanResult.networks);
-
-          // Step 4: Auto-select current network if available
-          if (scanResult.currentNetworkDetected && scanResult.networks.length > 0) {
-            const currentNetwork = scanResult.networks.find(n => n.isCurrentNetwork);
-            if (currentNetwork) {
-              console.log('[WiFiProvisioning] ✅ Auto-selecting current network:', currentNetwork.ssid);
-              setSelectedSSID(currentNetwork.ssid);
-              setCurrentSSID(currentNetwork.ssid);
-              
-              // Try to get saved password
-              const savedPassword = await keychainService.getPassword(currentNetwork.ssid);
-              if (savedPassword) {
-                console.log('[WiFiProvisioning] ✅ Found saved password for current network');
-                setPassword(savedPassword);
-              }
-            }
-          }
-
-          setScreenState('ready');
-          console.log('[WiFiProvisioning] ✅ INITIALIZATION COMPLETE');
-          console.log('[WiFiProvisioning] ========== SCREEN READY ==========');
-
-          // Fade in animation
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-          }).start();
-        } catch (scanError) {
-          // Handle WiFi scanning errors
-          if (scanError instanceof WiFiError) {
-            console.error('[WiFiProvisioning] WiFi Error:', scanError.type, scanError.message);
-            
-            if (scanError.type === WiFiErrorType.PERMISSION_DENIED) {
-              setScreenState('permission_required');
-              setErrorType(WiFiErrorType.PERMISSION_DENIED);
-              setErrorMessage(scanError.getUserMessage());
-            } else if (scanError.type === WiFiErrorType.LOCATION_DISABLED) {
-              setScreenState('location_disabled');
-              setErrorType(WiFiErrorType.LOCATION_DISABLED);
-              setErrorMessage(scanError.getUserMessage());
-            } else {
-              setScreenState('error');
-              setErrorType(scanError.type);
-              setErrorMessage(scanError.getUserMessage());
-            }
-          } else {
-            console.error('[WiFiProvisioning] Unknown error:', scanError);
-            setScreenState('error');
-            setErrorMessage('An unexpected error occurred.');
-          }
-        }
-      } catch (err) {
-        console.error('[WiFiProvisioning] ❌ FATAL ERROR initializing:', err);
-        setScreenState('error');
-        setErrorMessage(`Error: ${err}`);
-      }
-    };
-
-    initializeScreen();
+    loadWiFiNetworks();
   }, []);
 
-  const handleRequestPermissions = async () => {
+  const loadWiFiNetworks = async () => {
     try {
-      console.log('[WiFiProvisioning] Requesting permissions...');
-      const status = await permissionService.requestProvisioningPermissions();
-      console.log('[WiFiProvisioning] Permission request result:', status);
+      setIsLoading(true);
+      console.log('[WiFi] Starting network scan...');
+      
+      // Check permissions
+      const permsStatus = await permissionService.checkProvisioningPermissions();
+      console.log('[WiFi] Permission status:', permsStatus);
+      
+      if (!permsStatus.allGranted) {
+        console.log('[WiFi] Requesting permissions...');
+        const requestStatus = await permissionService.requestProvisioningPermissions();
+        if (!requestStatus.allGranted) {
+          Alert.alert('Error', 'Permissions required to scan WiFi networks');
+          setIsLoading(false);
+          return;
+        }
+      }
 
-      if (status.allGranted) {
-        console.log('[WiFiProvisioning] ✅ Permissions granted, retrying scan...');
-        // Retry initialization
-        setScreenState('loading');
-        setErrorMessage(null);
-        setErrorType(null);
+      // Scan networks
+      console.log('[WiFi] Scanning networks...');
+      const scanResult = await wifiService.scanNetworks();
+      console.log('[WiFi] Scan result:', scanResult);
+      
+      if (scanResult && scanResult.networks) {
+        setWifiNetworks(scanResult.networks);
+        console.log('[WiFi] Networks loaded:', scanResult.networks.length);
         
-        // Re-run initialization
-        const initializeScreen = async () => {
-          try {
-            const scanResult = await wifiService.scanNetworks();
-            setWifiNetworks(scanResult.networks);
-
-            if (scanResult.currentNetworkDetected && scanResult.networks.length > 0) {
-              const currentNetwork = scanResult.networks.find(n => n.isCurrentNetwork);
-              if (currentNetwork) {
-                setSelectedSSID(currentNetwork.ssid);
-                setCurrentSSID(currentNetwork.ssid);
-                const savedPassword = await keychainService.getPassword(currentNetwork.ssid);
-                if (savedPassword) {
-                  setPassword(savedPassword);
-                }
-              }
-            }
-
-            setScreenState('ready');
-          } catch (scanError) {
-            if (scanError instanceof WiFiError) {
-              if (scanError.type === WiFiErrorType.LOCATION_DISABLED) {
-                setScreenState('location_disabled');
-                setErrorType(WiFiErrorType.LOCATION_DISABLED);
-                setErrorMessage(scanError.getUserMessage());
-              } else {
-                setScreenState('error');
-                setErrorType(scanError.type);
-                setErrorMessage(scanError.getUserMessage());
-              }
-            } else {
-              setScreenState('error');
-              setErrorMessage('An unexpected error occurred.');
-            }
-          }
-        };
-        
-        initializeScreen();
+        // Auto-select first network
+        if (scanResult.networks.length > 0) {
+          setSelectedSSID(scanResult.networks[0].ssid);
+          console.log('[WiFi] Auto-selected network:', scanResult.networks[0].ssid);
+        }
       } else {
-        console.warn('[WiFiProvisioning] ⚠️ Permissions still not granted');
-        setErrorMessage('Permissions were not granted. Please try again.');
+        console.warn('[WiFi] No networks found in scan result');
+        setWifiNetworks([]);
       }
     } catch (error) {
-      console.error('[WiFiProvisioning] Error requesting permissions:', error);
-      setErrorMessage('Failed to request permissions.');
+      console.error('[WiFi] Error loading networks:', error);
+      Alert.alert('Error', 'Failed to scan WiFi networks: ' + String(error));
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleOpenSettings = async () => {
-    try {
-      if (errorType === WiFiErrorType.LOCATION_DISABLED) {
-        // Open location settings
-        Linking.openSettings();
-      } else {
-        // Open app settings
-        Linking.openSettings();
-      }
-    } catch (error) {
-      console.error('[WiFiProvisioning] Error opening settings:', error);
-      Alert.alert('Error', 'Could not open settings');
+  const handleConnect = async () => {
+    if (!selectedSSID) {
+      Alert.alert('Error', 'Please select a WiFi network');
+      return;
     }
-  };
-
-  const validateCredentials = (): boolean => {
-    if (!selectedSSID.trim()) {
-      setErrorMessage('Network name cannot be empty');
-      return false;
-    }
-
-    if (selectedSSID.length > 32) {
-      setErrorMessage('Network name is too long (max 32 characters)');
-      return false;
-    }
-
     if (!password) {
-      setErrorMessage('Password cannot be empty');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleConnectDevice = async () => {
-    if (!validateCredentials()) {
+      Alert.alert('Error', 'Please enter WiFi password');
       return;
     }
 
-    setErrorMessage(null);
-    
-    // Navigate to progress screen first
-    navigation.navigate('ProvisioningProgress', { 
-      deviceName,
-      deviceId,
-      ssid: selectedSSID,
-    });
-
-    // Start provisioning with callback to navigate to dashboard on completion
-    await startProvisioning(
-      deviceId, 
-      deviceName, 
-      selectedSSID, 
-      password, 
-      rememberNetwork,
-      (provisionedDeviceId: string, provisionedDeviceName: string) => {
-        // Navigate to home dashboard with provisioning complete flag
-        navigation.reset({
-          index: 0,
-          routes: [
-            {
-              name: 'HomeMain',
-              params: {
-                justProvisioned: true,
-                deviceId: provisionedDeviceId,
-                deviceName: provisionedDeviceName,
-              },
-            },
-          ],
-        });
-      }
-    );
-  };
-
-  const handleCancel = () => {
-    cancelProvisioning();
-    navigation.goBack();
-  };
-
-  const handleSelectNetwork = async (ssid: string) => {
-    setSelectedSSID(ssid);
-
-    // Try to get saved password
-    const savedPassword = await keychainService.getPassword(ssid);
-    if (savedPassword) {
-      setPassword(savedPassword);
+    setIsConnecting(true);
+    try {
+      // Start provisioning with WiFi credentials
+      await startProvisioning(
+        deviceId,
+        deviceName,
+        selectedSSID,
+        password,
+        rememberNetwork,
+        displayName,
+        roomName,
+        (provisionedDeviceId: string, provisionedDeviceName: string) => {
+          // Show success animation
+          setShowSuccessAnimation(true);
+          
+          // Animate success
+          Animated.sequence([
+            Animated.timing(scaleAnim, {
+              toValue: 1,
+              duration: 400,
+              useNativeDriver: true,
+            }),
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.timing(checkScaleAnim, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.delay(1500),
+          ]).start(() => {
+            // Navigate to HomeScreen
+            navigation.reset({
+              index: 0,
+              routes: [
+                {
+                  name: 'HomeMain',
+                  params: {
+                    justProvisioned: true,
+                    deviceName: provisionedDeviceName,
+                    deviceId: provisionedDeviceId,
+                  },
+                },
+              ],
+            });
+          });
+        }
+      );
+    } catch (error) {
+      console.error('[WiFi] Provisioning error:', error);
+      Alert.alert('Error', 'Failed to start provisioning');
+    } finally {
+      setIsConnecting(false);
     }
   };
 
-  // Render permission required state
-  if (screenState === 'permission_required') {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+  const getNetworkIcon = (level: number) => {
+    return 'wifi';
+  };
 
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleCancel}
-            disabled={provisioningState !== ProvisioningState.IDLE}
-          >
-            <Text style={styles.backIcon}>‹</Text>
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>WiFi Setup</Text>
-            <Text style={styles.deviceName}>{deviceName}</Text>
-          </View>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.permissionRequiredContainer}>
-            <Text style={styles.permissionIcon}>🔐</Text>
-            <Text style={styles.permissionTitle}>Permissions Required</Text>
-            <Text style={styles.permissionMessage}>
-              WiFi scanning requires Bluetooth and Location permissions to discover nearby networks.
-            </Text>
-            
-            <View style={styles.permissionsList}>
-              <View style={styles.permissionItem}>
-                <Text style={styles.permissionCheckmark}>✓</Text>
-                <Text style={styles.permissionItemText}>Bluetooth Access</Text>
-              </View>
-              <View style={styles.permissionItem}>
-                <Text style={styles.permissionCheckmark}>✓</Text>
-                <Text style={styles.permissionItemText}>Location Access</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.grantButton}
-              onPress={handleRequestPermissions}
-            >
-              <Text style={styles.grantButtonText}>Grant Permissions</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={handleCancel}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // Render location disabled state
-  if (screenState === 'location_disabled') {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleCancel}
-            disabled={provisioningState !== ProvisioningState.IDLE}
-          >
-            <Text style={styles.backIcon}>‹</Text>
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>WiFi Setup</Text>
-            <Text style={styles.deviceName}>{deviceName}</Text>
-          </View>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.locationDisabledContainer}>
-            <Text style={styles.locationTitle}>Location Services Disabled</Text>
-            <Text style={styles.locationMessage}>
-              Android requires Location Services to be enabled for WiFi network discovery.
-            </Text>
-            
-            <View style={styles.instructionsBox}>
-              <Text style={styles.instructionsTitle}>To enable Location Services:</Text>
-              <Text style={styles.instructionStep}>1. Open Settings</Text>
-              <Text style={styles.instructionStep}>2. Go to Location</Text>
-              <Text style={styles.instructionStep}>3. Toggle Location ON</Text>
-            </View>
-
-            <Text style={styles.alternativeText}>
-              You can still provision using your currently connected WiFi network or enter a network manually.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.settingsButton}
-              onPress={handleOpenSettings}
-            >
-              <Text style={styles.settingsButtonText}>Open Settings</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.continueButton}
-              onPress={() => setScreenState('ready')}
-            >
-              <Text style={styles.continueButtonText}>Continue Without Location</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // Render error state
-  if (screenState === 'error') {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleCancel}
-            disabled={provisioningState !== ProvisioningState.IDLE}
-          >
-            <Text style={styles.backIcon}>‹</Text>
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>WiFi Setup</Text>
-            <Text style={styles.deviceName}>{deviceName}</Text>
-          </View>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorTitle}>Error</Text>
-            <Text style={styles.errorMessage}>{errorMessage}</Text>
-
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={handleCancel}
-            >
-              <Text style={styles.retryButtonText}>Go Back</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // Render loading state
-  if (screenState === 'loading') {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleCancel}
-            disabled={provisioningState !== ProvisioningState.IDLE}
-          >
-            <Text style={styles.backIcon}>‹</Text>
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>WiFi Setup</Text>
-            <Text style={styles.deviceName}>{deviceName}</Text>
-          </View>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Scanning WiFi networks...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  // Render ready state (normal form)
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor="#F4F7FB" />
 
+      {/* Success Animation Modal */}
+      <Modal
+        visible={showSuccessAnimation}
+        transparent
+        animationType="none"
+      >
+        <View style={styles.successOverlay}>
+          <Animated.View
+            style={[
+              styles.successCircle,
+              {
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.checkmarkContainer,
+                {
+                  transform: [{ scale: checkScaleAnim }],
+                },
+              ]}
+            >
+              <Icon name="check" size={56} color="#FFFFFF" />
+            </Animated.View>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.successMessageContainer,
+              {
+                opacity: fadeAnim,
+              },
+            ]}
+          >
+            <Text style={styles.successTitle}>Device Added!</Text>
+            <Text style={styles.successSubtitle}>
+              {displayName || deviceName} is ready to use
+            </Text>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleCancel}
-          disabled={provisioningState !== ProvisioningState.IDLE}
-        >
-          <Text style={styles.backIcon}>‹</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Icon name="chevron-left" size={24} color="#6B7280" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>WiFi Setup</Text>
-          <Text style={styles.deviceName}>{deviceName}</Text>
+          <Text style={styles.headerTitle}>Connect to WiFi</Text>
+          <Text style={styles.headerSubtitle}>{displayName || deviceName}</Text>
         </View>
-        <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-        <WiFiSelector
-          selectedSSID={selectedSSID}
-          onSelectSSID={handleSelectNetwork}
-          networks={wifiNetworks}
-          currentSSID={currentSSID}
-          isScanning={false}
-        />
+      {/* Progress Bar */}
+      <View style={styles.progressContainer}>
+        <View style={[styles.progressBar, { width: '66%' }]} />
+      </View>
 
-        <PasswordInput
-          value={password}
-          onChangeText={setPassword}
-        />
-
-        <View style={styles.rememberNetworkContainer}>
-          <TouchableOpacity
-            style={styles.checkboxContainer}
-            onPress={() => setRememberNetwork(!rememberNetwork)}
-          >
-            <View style={[styles.checkbox, rememberNetwork && styles.checkboxChecked]}>
-              {rememberNetwork && <Text style={styles.checkmark}>✓</Text>}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Status Card */}
+        <View style={styles.statusCard}>
+          <View style={styles.statusHeader}>
+            <Icon name="wifi" size={20} color="#3B82F6" />
+            <View style={styles.statusContent}>
+              <Text style={styles.statusTitle}>
+                {wifiNetworks.length} network{wifiNetworks.length !== 1 ? 's' : ''} found nearby
+              </Text>
+              <Text style={styles.statusSubtitle}>Select your network below</Text>
             </View>
-            <Text style={styles.checkboxLabel}>Remember this network</Text>
+          </View>
+          <TouchableOpacity onPress={loadWiFiNetworks} style={styles.refreshButton}>
+            <Icon name="refresh-cw" size={18} color="#3B82F6" />
           </TouchableOpacity>
         </View>
 
-        {errorMessage && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerIcon}>⚠️</Text>
-            <Text style={styles.errorBannerText}>{errorMessage}</Text>
-          </View>
+        {/* Available Networks */}
+        <Text style={styles.sectionLabel}>AVAILABLE NETWORKS</Text>
+        <View style={styles.networksList}>
+          {isLoading ? (
+            <Text style={styles.loadingText}>Scanning networks...</Text>
+          ) : wifiNetworks.length === 0 ? (
+            <Text style={styles.emptyText}>No networks found</Text>
+          ) : (
+            wifiNetworks.map((network) => (
+              <TouchableOpacity
+                key={network.ssid}
+                style={[
+                  styles.networkCard,
+                  selectedSSID === network.ssid && styles.networkCardSelected,
+                ]}
+                onPress={() => setSelectedSSID(network.ssid)}
+              >
+                <View style={styles.networkIcon}>
+                  <Icon
+                    name={getNetworkIcon(network.level)}
+                    size={20}
+                    color={selectedSSID === network.ssid ? '#FFFFFF' : '#3B82F6'}
+                  />
+                </View>
+                <View style={styles.networkInfo}>
+                  <Text style={[styles.networkName, selectedSSID === network.ssid && styles.networkNameSelected]}>
+                    {network.ssid}
+                  </Text>
+                  <View style={styles.networkMeta}>
+                    <Text style={styles.networkSignalStrength}>
+                      Signal: {network.level}%
+                    </Text>
+                    {network.frequency && (
+                      <Text style={styles.networkFreq}>{network.frequency}</Text>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.networkSignal}>
+                  <Icon name="signal" size={16} color={selectedSSID === network.ssid ? '#3B82F6' : '#9CA3AF'} />
+                  {selectedSSID === network.ssid && (
+                    <View style={styles.checkmark}>
+                      <Icon name="check" size={16} color="#3B82F6" />
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+
+        {/* Password Section */}
+        {selectedSSID && (
+          <>
+            <Text style={styles.sectionLabel}>PASSWORD</Text>
+            <View style={styles.passwordCard}>
+              <Text style={styles.passwordLabel}>{selectedSSID}</Text>
+              <View style={styles.passwordInputContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Enter password"
+                  placeholderTextColor="#9CA3AF"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                  <Icon name={showPassword ? 'eye' : 'eye-off'} size={18} color="#9CA3AF" />
+                </TouchableOpacity>
+                {password && (
+                  <TouchableOpacity onPress={() => setPassword('')}>
+                    <Icon name="x" size={18} color="#9CA3AF" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={styles.passwordHint}>Enter password to check strength</Text>
+            </View>
+          </>
         )}
 
+        {/* Settings */}
+        <View style={styles.settingsCard}>
+          <View style={styles.settingRow}>
+            <View style={styles.settingContent}>
+              <Icon name="bookmark" size={20} color="#3B82F6" />
+              <View style={styles.settingText}>
+                <Text style={styles.settingTitle}>Remember network</Text>
+                <Text style={styles.settingSubtitle}>Auto-join when in range</Text>
+              </View>
+            </View>
+            <Switch
+              value={rememberNetwork}
+              onValueChange={setRememberNetwork}
+              trackColor={{ false: '#E5E7EB', true: '#3B82F6' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingContent}>
+              <Icon name="repeat" size={20} color="#9CA3AF" />
+              <View style={styles.settingText}>
+                <Text style={styles.settingTitle}>Auto-reconnect on drop</Text>
+                <Text style={styles.settingSubtitle}>Retry up to 3 times</Text>
+              </View>
+            </View>
+            <Switch
+              value={autoReconnect}
+              onValueChange={setAutoReconnect}
+              trackColor={{ false: '#E5E7EB', true: '#3B82F6' }}
+              thumbColor="#FFFFFF"
+              disabled
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingContent}>
+              <Icon name="shield" size={20} color="#10B981" />
+              <View style={styles.settingText}>
+                <Text style={styles.settingTitle}>Encrypted provisioning</Text>
+                <Text style={styles.settingSubtitle}>TLS 1.3 handshake</Text>
+              </View>
+            </View>
+            <View style={styles.activeBadge}>
+              <Text style={styles.activeBadgeText}>Active</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Connect Button */}
         <TouchableOpacity
-          style={styles.connectButton}
-          onPress={handleConnectDevice}
+          style={[
+            styles.connectButton,
+            (!selectedSSID || !password || isConnecting) && styles.connectButtonDisabled,
+          ]}
+          onPress={handleConnect}
+          disabled={!selectedSSID || !password || isConnecting}
         >
-          <Text style={styles.connectButtonText}>Connect Device</Text>
+          <Icon name="wifi" size={18} color="#FFFFFF" />
+          <Text style={styles.connectButtonText}>
+            {isConnecting ? 'Connecting...' : 'Connect device'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -546,8 +398,58 @@ const WiFiProvisioningScreen = ({ navigation, route }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F4F7FB',
   },
+
+  // Success Animation
+  successOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  successCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+    marginBottom: 32,
+  },
+
+  checkmarkContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  successMessageContainer: {
+    alignItems: 'center',
+  },
+
+  successTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+
+  successSubtitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -557,300 +459,341 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
+
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
   },
-  backIcon: {
-    fontSize: 24,
-    color: '#1F2937',
-    fontWeight: '300',
-  },
+
   headerContent: {
     flex: 1,
-    marginLeft: 12,
   },
+
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: '700',
+    color: '#111827',
   },
-  deviceName: {
+
+  headerSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    fontWeight: '400',
+    color: '#9CA3AF',
     marginTop: 2,
   },
-  headerSpacer: {
-    width: 36,
+
+  // Progress Bar
+  progressContainer: {
+    height: 4,
+    backgroundColor: '#E5E7EB',
   },
-  formContainer: {
+
+  progressBar: {
+    height: 4,
+    backgroundColor: '#3B82F6',
+  },
+
+  // Scroll View
+  scrollView: {
     flex: 1,
+  },
+
+  scrollContent: {
     paddingHorizontal: 16,
     paddingVertical: 20,
+    paddingBottom: 32,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  permissionRequiredContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  permissionIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  permissionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  permissionMessage: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  permissionsList: {
-    width: '100%',
-    marginBottom: 32,
-  },
-  permissionItem: {
+
+  // Status Card
+  statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#F0FDF4',
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  permissionCheckmark: {
-    fontSize: 18,
-    color: '#10B981',
-    marginRight: 12,
-    fontWeight: '600',
-  },
-  permissionItemText: {
-    fontSize: 14,
-    color: '#1F2937',
-    fontWeight: '500',
-  },
-  grantButton: {
-    width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  grantButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  cancelButton: {
-    width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    justifyContent: 'center',
+  },
+
+  statusHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    flex: 1,
   },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
+
+  statusContent: {
+    flex: 1,
   },
-  locationDisabledContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  locationIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  locationTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  locationMessage: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  instructionsBox: {
-    width: '100%',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 8,
-    marginBottom: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
-  },
-  instructionsTitle: {
+
+  statusTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#92400E',
-    marginBottom: 8,
+    color: '#10B981',
   },
-  instructionStep: {
-    fontSize: 12,
-    color: '#92400E',
-    marginBottom: 4,
+
+  statusSubtitle: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: '#9CA3AF',
+    marginTop: 2,
   },
-  alternativeText: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 24,
-    fontStyle: 'italic',
-  },
-  settingsButton: {
-    width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#F59E0B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  settingsButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  continueButton: {
-    width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+
+  refreshButton: {
+    width: 36,
+    height: 36,
     borderRadius: 8,
     backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  continueButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  errorContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  errorIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  errorTitle: {
-    fontSize: 20,
+
+  // Section Label
+  sectionLabel: {
+    fontSize: 11,
     fontWeight: '700',
-    color: '#DC2626',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
     marginBottom: 12,
   },
-  errorMessage: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
+
+  // Networks List
+  networksList: {
     marginBottom: 24,
-    lineHeight: 20,
   },
-  retryButton: {
-    width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+
+  loadingText: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    paddingVertical: 16,
   },
-  retryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+
+  emptyText: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    paddingVertical: 16,
   },
-  rememberNetworkContainer: {
-    marginBottom: 20,
-  },
-  checkboxContainer: {
+
+  networkCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderLeftWidth: 4,
+    borderLeftColor: 'transparent',
   },
-  checkbox: {
+
+  networkCardSelected: {
+    borderColor: '#3B82F6',
+    borderLeftColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+  },
+
+  networkIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+
+  networkInfo: {
+    flex: 1,
+  },
+
+  networkName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+
+  networkNameSelected: {
+    color: '#3B82F6',
+  },
+
+  networkMeta: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+
+  networkSecurity: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#F59E0B',
+  },
+
+  networkSignalStrength: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#F59E0B',
+  },
+
+  networkFreq: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: '#9CA3AF',
+  },
+
+  networkSignal: {
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  checkmark: {
     width: 20,
     height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderRadius: 10,
+    backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  checkboxChecked: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
+
+  // Password Card
+  passwordCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  checkmark: {
-    color: '#FFFFFF',
+
+  passwordLabel: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#9CA3AF',
+    marginBottom: 10,
   },
-  checkboxLabel: {
-    fontSize: 14,
-    color: '#1F2937',
-  },
-  errorBanner: {
+
+  passwordInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 8,
-    marginBottom: 16,
+    marginBottom: 8,
+    gap: 8,
   },
-  errorBannerIcon: {
-    fontSize: 18,
-  },
-  errorBannerText: {
+
+  passwordInput: {
     flex: 1,
-    fontSize: 13,
-    color: '#DC2626',
-  },
-  connectButton: {
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  connectButtonText: {
     fontSize: 14,
+    fontWeight: '400',
+    color: '#111827',
+  },
+
+  passwordHint: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: '#9CA3AF',
+  },
+
+  // Settings Card
+  settingsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+
+  settingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+
+  settingText: {
+    flex: 1,
+  },
+
+  settingTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+
+  settingSubtitle: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+
+  activeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 6,
+  },
+
+  activeBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+
+  // Connect Button
+  connectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#3B82F6',
+    borderRadius: 12,
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+
+  connectButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+
+  connectButtonText: {
+    fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
   },

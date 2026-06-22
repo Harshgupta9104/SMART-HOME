@@ -9,16 +9,20 @@ import SimpleBleProvisionScreen from '../screens/SimpleBleProvisionScreen';
 import WiFiProvisioningScreen from '../screens/WiFiProvisioningScreen';
 import ProvisioningProgressScreen from '../screens/ProvisioningProgressScreen';
 import ProvisioningSuccessScreen from '../screens/ProvisioningSuccessScreen';
+import DeviceConfigScreen from '../screens/DeviceConfigScreen';
 import DeviceDetailsScreen from '../screens/DeviceDetailsScreen';
 import DeviceNamingScreen from '../screens/DeviceNamingScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import { useTheme } from '../context/ThemeContext';
+import { getNavigationTheme } from '../theme/theme';
 
 const Stack = createNativeStackNavigator();
 
 const RootNavigator = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const { isDark } = useTheme();
 
   useEffect(() => {
     // Simulate minimal loading time
@@ -39,8 +43,10 @@ const RootNavigator = () => {
     );
   }
 
+  const navigationTheme = getNavigationTheme(isDark);
+
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
@@ -64,6 +70,13 @@ const RootNavigator = () => {
         <Stack.Screen
           name="SimpleBleProvision"
           component={SimpleBleProvisionScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="DeviceConfig"
+          component={DeviceConfigScreen}
           options={{
             headerShown: false,
           }}

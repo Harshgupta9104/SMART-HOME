@@ -8,9 +8,11 @@
 import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BleProvider } from './src/context/BleContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { getMQTTService } from './src/services/mqttService';
 import { getPermissionService } from './src/services/permissionService';
+import { getNotificationService } from './src/services/notificationService';
 
 function App() {
   // Request permissions silently on app startup
@@ -27,8 +29,11 @@ function App() {
     requestPermissions();
 
     // Initialize MQTT connection on app startup
-    const initializeMQTT = async () => {
+    const initializeApp = async () => {
       try {
+        // Initialize notification service
+        await getNotificationService().initialize();
+        
         const mqttService = getMQTTService();
 
         // Step 1: Initialize client (setup callbacks)
@@ -51,11 +56,11 @@ function App() {
           console.warn('[App] ⚠️ MQTT connection failed, will retry on device subscription');
         }
       } catch (error) {
-        console.error('[App] Error initializing MQTT:', error);
+        console.error('[App] Error initializing:', error);
       }
     };
 
-    initializeMQTT();
+    initializeApp();
 
     // Cleanup on app unmount
     return () => {
@@ -65,9 +70,11 @@ function App() {
 
   return (
     <SafeAreaProvider>
-      <BleProvider>
-        <RootNavigator />
-      </BleProvider>
+      <ThemeProvider>
+        <BleProvider>
+          <RootNavigator />
+        </BleProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

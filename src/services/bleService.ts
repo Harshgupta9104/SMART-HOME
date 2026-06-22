@@ -484,9 +484,18 @@ class BleService {
         );
         console.log('[BLE] Credentials sent successfully');
       } catch (writeError) {
-        console.error('[BLE] Error sending credentials:', writeError);
-        clearTimeout(timeout);
-        throw new Error(`Failed to send credentials: ${writeError}`);
+        // Check if this is a "device not connected" error that happened AFTER we sent credentials
+        // This is expected behavior - the ESP32 reboots after receiving credentials
+        const errorMsg = String(writeError);
+        if (errorMsg.includes('not connected') || errorMsg.includes('Device is not connected')) {
+          console.log('[BLE] ⚠️ Device disconnected after sending credentials (expected - device is rebooting)');
+          // Don't throw - the device will reconnect via MQTT after WiFi setup
+          // Continue waiting for acknowledgment from notifications
+        } else {
+          console.error('[BLE] Error sending credentials:', writeError);
+          clearTimeout(timeout);
+          throw new Error(`Failed to send credentials: ${writeError}`);
+        }
       }
 
       // Wait for acknowledgment from ESP32
