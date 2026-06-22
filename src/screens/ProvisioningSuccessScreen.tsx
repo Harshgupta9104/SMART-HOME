@@ -100,7 +100,7 @@ const ProvisioningSuccessScreen: React.FC<ProvisioningSuccessScreenProps> = ({
               },
             ]}
           >
-            <Icon name="check" size={56} color="#FFFFFF" strokeWidth={3} />
+            <Icon name="check" size={56} color="#FFFFFF" />
           </Animated.View>
         </Animated.View>
 
