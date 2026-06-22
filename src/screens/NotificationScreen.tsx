@@ -187,7 +187,7 @@ const NotificationScreen = ({ navigation }: any) => {
               {notificationService.getUnreadCount() > 0 && (
                 <TouchableOpacity
                   className="py-3 px-4 rounded-lg mt-4 mb-4"
-                  style={{ backgroundColor: '#EFF6FF', borderColor: '#DBEAFE', borderWidth: 1 }}
+                  style={{ backgroundColor: theme.primarySoft, borderColor: theme.border, borderWidth: 1 }}
                   onPress={handleMarkAllAsRead}
                 >
                   <Text className="text-sm font-semibold text-center" style={{ color: theme.primary }}>Mark all as read</Text>
@@ -202,8 +202,8 @@ const NotificationScreen = ({ navigation }: any) => {
                   <View
                     className="rounded-2xl p-4 mb-3 flex-row justify-between items-start border"
                     style={{
-                      backgroundColor: !item.read ? '#F0F9FF' : theme.card,
-                      borderColor: !item.read ? '#DBEAFE' : theme.border,
+                      backgroundColor: !item.read ? theme.primarySoft : theme.card,
+                      borderColor: !item.read ? theme.border : theme.border,
                     }}
                   >
                     <View className="flex-row flex-1 gap-3">
@@ -269,7 +269,7 @@ const NotificationScreen = ({ navigation }: any) => {
               {notifications.length > 0 && (
                 <TouchableOpacity
                   className="py-3 px-4 rounded-lg mt-4 mb-8"
-                  style={{ backgroundColor: '#FEE2E2', borderColor: '#FECACA', borderWidth: 1 }}
+                  style={{ backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }}
                   onPress={handleClearAll}
                 >
                   <Text className="text-sm font-semibold text-center" style={{ color: '#DC2626' }}>Clear all notifications</Text>
