@@ -203,7 +203,7 @@ const NotificationScreen = ({ navigation }: any) => {
                     className="rounded-2xl p-4 mb-3 flex-row justify-between items-start border"
                     style={{
                       backgroundColor: !item.read ? theme.primarySoft : theme.card,
-                      borderColor: !item.read ? theme.border : theme.border,
+                      borderColor: theme.border,
                     }}
                   >
                     <View className="flex-row flex-1 gap-3">
