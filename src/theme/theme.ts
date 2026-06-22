@@ -143,7 +143,7 @@ export const OCEAN_THEME: ThemeColors = {
   // Text - Light for readability
   textPrimary: '#E8F4F8',
   textSecondary: '#B3D9E8',
-  textMuted: '#7BA8BD',
+  textMuted: '#96C4D8',
 
   // Borders - Cyan accents
   border: 'rgba(71, 184, 230, 0.15)',
@@ -183,7 +183,7 @@ export const EMERALD_THEME: ThemeColors = {
   // Text - Light sage
   textPrimary: '#E8F5F1',
   textSecondary: '#B3D9CC',
-  textMuted: '#7BA89B',
+  textMuted: '#96CABD',
 
   // Borders - Emerald accents
   border: 'rgba(16, 185, 129, 0.15)',
@@ -223,7 +223,7 @@ export const PURPLE_THEME: ThemeColors = {
   // Text - Light purple
   textPrimary: '#F3E8FF',
   textSecondary: '#D8B4FE',
-  textMuted: '#A78BFA',
+  textMuted: '#C4B5FD',
 
   // Borders - Purple accents
   border: 'rgba(168, 85, 247, 0.15)',
