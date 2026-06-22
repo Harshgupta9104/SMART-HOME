@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   TextInput,
   Animated,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { getStorageService, ProvisionedDevice } from '../services/storageService';
+import RoomSelector from '../components/RoomSelector';
 
 interface DeviceNamingScreenProps {
   navigation: any;
@@ -30,13 +32,13 @@ const DeviceNamingScreen: React.FC<DeviceNamingScreenProps> = ({
   route,
 }) => {
   const insets = useSafeAreaInsets();
-  const { deviceId, deviceName, selectedRoom } = route.params || {
+  const { deviceId, deviceName } = route.params || {
     deviceId: '',
     deviceName: 'Device',
-    selectedRoom: 'All rooms',
   };
 
   const [displayName, setDisplayName] = useState('');
+  const [selectedRoom, setSelectedRoom] = useState('Unassigned');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -116,10 +118,11 @@ const DeviceNamingScreen: React.FC<DeviceNamingScreenProps> = ({
         throw new Error('Device not found');
       }
 
-      // Update device with display name
+      // Update device with display name and room
       const updatedDevice: ProvisionedDevice = {
         ...device,
         displayName: displayName.trim(),
+        roomName: selectedRoom,
       };
 
       await storageService.addProvisionedDevice(updatedDevice);
@@ -178,7 +181,7 @@ const DeviceNamingScreen: React.FC<DeviceNamingScreenProps> = ({
       </View>
 
       {/* Content */}
-      <View style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Device Icon */}
         <View style={styles.deviceIconContainer}>
           <View style={styles.deviceIcon}>
@@ -260,8 +263,16 @@ const DeviceNamingScreen: React.FC<DeviceNamingScreenProps> = ({
               )}
             </View>
           </View>
+
+          {/* Room Selector */}
+          <View style={styles.roomSelectorSection}>
+            <RoomSelector
+              selectedRoom={selectedRoom}
+              onSelectRoom={setSelectedRoom}
+            />
+          </View>
         </View>
-      </View>
+      </ScrollView>
 
       {/* Footer Buttons */}
       <View style={styles.footer}>
@@ -393,6 +404,13 @@ const styles = StyleSheet.create({
   // Input Section
   inputSection: {
     marginBottom: 24,
+  },
+
+  roomSelectorSection: {
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
 
   inputLabel: {

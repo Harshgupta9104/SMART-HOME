@@ -6,6 +6,8 @@ export interface ProvisionedDevice {
   name: string; // Internal provisioning ID (e.g., PROV_26B7B3F8)
   displayName?: string; // User-friendly display name (e.g., "Living Room Hub")
   roomName?: string; // Room/location name (e.g., "Living room", "Kitchen")
+  deviceType?: string; // Optional device type (e.g., "smart_switch_4_relay")
+  relayNames?: { [key: string]: string }; // Optional relay names for multi-relay devices
   macAddress: string;
   mqttDeviceId?: string; // ✅ MQTT device ID for topic usage
   ssid: string;
@@ -208,6 +210,156 @@ class StorageService {
     } catch (error) {
       console.error('[Storage] Error clearing saved networks:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Update a single device field (partial update)
+   */
+  async updateProvisionedDevice(deviceId: string, updates: Partial<ProvisionedDevice>): Promise<void> {
+    try {
+      const devices = await this.getProvisionedDevices();
+      const deviceIndex = devices.findIndex(d => d.id === deviceId);
+
+      if (deviceIndex === -1) {
+        throw new Error('Device not found');
+      }
+
+      devices[deviceIndex] = { ...devices[deviceIndex], ...updates };
+      await AsyncStorage.setItem(PROVISIONED_DEVICES_KEY, JSON.stringify(devices));
+      console.log('[Storage] Device updated:', deviceId);
+    } catch (error) {
+      console.error('[Storage] Error updating device:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update device room assignment
+   */
+  async updateDeviceRoom(deviceId: string, roomName: string): Promise<void> {
+    await this.updateProvisionedDevice(deviceId, { roomName });
+  }
+
+  /**
+   * Get all unique rooms from provisioned devices
+   */
+  async getRooms(): Promise<string[]> {
+    try {
+      const devices = await this.getProvisionedDevices();
+      const roomsSet = new Set<string>();
+
+      devices.forEach(device => {
+        const room = device.roomName || 'Unassigned';
+        roomsSet.add(room);
+      });
+
+      const rooms = Array.from(roomsSet).sort();
+      console.log('[Storage] Retrieved unique rooms:', rooms);
+      return rooms;
+    } catch (error) {
+      console.error('[Storage] Error getting rooms:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get devices by room name
+   */
+  async getDevicesByRoom(roomName: string): Promise<ProvisionedDevice[]> {
+    try {
+      const devices = await this.getProvisionedDevices();
+      const filtered = devices.filter(d => (d.roomName || 'Unassigned') === roomName);
+      console.log('[Storage] Retrieved devices for room:', roomName, 'Count:', filtered.length);
+      return filtered;
+    } catch (error) {
+      console.error('[Storage] Error getting devices by room:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Rename a room (updates all devices in that room)
+   */
+  async renameRoom(oldName: string, newName: string): Promise<void> {
+    try {
+      // Normalize names for comparison
+      const oldNameTrimmed = oldName.trim();
+      const newNameTrimmed = newName.trim();
+      
+      // Validate new room name
+      if (!newNameTrimmed) {
+        throw new Error('New room name cannot be empty');
+      }
+
+      // If names are identical (case-insensitive), do nothing safely
+      if (oldNameTrimmed.toLowerCase() === newNameTrimmed.toLowerCase()) {
+        console.log('[Storage] Room rename skipped (same name):', oldNameTrimmed);
+        return;
+      }
+
+      // Get all devices to check for existing room
+      const devices = await this.getProvisionedDevices();
+      
+      // Check if a room with the new name already exists (case-insensitive)
+      const newRoomExists = devices.some(
+        device => (device.roomName || 'Unassigned').toLowerCase() === newNameTrimmed.toLowerCase()
+      );
+
+      if (newRoomExists) {
+        throw new Error(`A room with the name "${newNameTrimmed}" already exists`);
+      }
+
+      // Rename: update all devices where roomName matches oldName
+      const updated = devices.map(device => {
+        if ((device.roomName || 'Unassigned').toLowerCase() === oldNameTrimmed.toLowerCase()) {
+          return { ...device, roomName: newNameTrimmed };
+        }
+        return device;
+      });
+
+      await AsyncStorage.setItem(PROVISIONED_DEVICES_KEY, JSON.stringify(updated));
+      console.log('[Storage] Room renamed:', oldNameTrimmed, '→', newNameTrimmed);
+    } catch (error) {
+      console.error('[Storage] Error renaming room:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get device count for a specific room
+   */
+  async getDeviceCountByRoom(roomName: string): Promise<number> {
+    try {
+      const devices = await this.getDevicesByRoom(roomName);
+      return devices.length;
+    } catch (error) {
+      console.error('[Storage] Error getting device count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get all devices grouped by room
+   */
+  async getDevicesGroupedByRoom(): Promise<{ [room: string]: ProvisionedDevice[] }> {
+    try {
+      const devices = await this.getProvisionedDevices();
+      const grouped: { [room: string]: ProvisionedDevice[] } = {};
+
+      devices.forEach(device => {
+        const room = device.roomName || 'Unassigned';
+        if (!grouped[room]) {
+          grouped[room] = [];
+        }
+        grouped[room].push(device);
+      });
+
+      console.log('[Storage] Devices grouped by room:', Object.keys(grouped));
+      return grouped;
+    } catch (error) {
+      console.error('[Storage] Error grouping devices:', error);
+      return {};
     }
   }
 }
