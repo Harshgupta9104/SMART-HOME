@@ -22,7 +22,7 @@ const Stack = createNativeStackNavigator();
 
 const RootNavigator = () => {
   const [isLoading, setIsLoading] = useState(true);
-  const { isDark } = useTheme();
+  const { resolvedMode } = useTheme();
 
   useEffect(() => {
     // Simulate minimal loading time
@@ -43,7 +43,7 @@ const RootNavigator = () => {
     );
   }
 
-  const navigationTheme = getNavigationTheme(isDark);
+  const navigationTheme = getNavigationTheme(resolvedMode);
 
   return (
     <NavigationContainer theme={navigationTheme}>

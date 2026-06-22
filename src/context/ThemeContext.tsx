@@ -1,20 +1,29 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ThemeMode, ThemeColors, getTheme } from '../theme/theme';
+import {
+  AppThemeMode,
+  ResolvedThemeMode,
+  ThemeColors,
+  getTheme,
+  isDarkTheme,
+} from '../theme/theme';
 
 interface ThemeContextValue {
   theme: ThemeColors;
-  mode: ThemeMode;
-  resolvedMode: 'light' | 'dark';
+  mode: AppThemeMode;
+  resolvedMode: ResolvedThemeMode;
   isDark: boolean;
-  setMode: (mode: ThemeMode) => Promise<void>;
+  setMode: (mode: AppThemeMode) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 const THEME_MODE_KEY = '@SmartHome_ThemeMode';
-const DEFAULT_MODE: ThemeMode = 'system';
+const DEFAULT_MODE: AppThemeMode = 'system';
+
+// Valid theme modes
+const VALID_MODES: AppThemeMode[] = ['light', 'dark', 'ocean', 'emerald', 'purple', 'system'];
 
 interface ThemeProviderProps {
   children: ReactNode;
@@ -22,7 +31,7 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const systemColorScheme = useColorScheme();
-  const [mode, setModeState] = useState<ThemeMode>('system');
+  const [mode, setModeState] = useState<AppThemeMode>('system');
   const [isLoading, setIsLoading] = useState(true);
 
   // Load saved theme mode on mount
@@ -30,8 +39,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     const loadThemeMode = async () => {
       try {
         const savedMode = await AsyncStorage.getItem(THEME_MODE_KEY);
-        if (savedMode && ['light', 'dark', 'system'].includes(savedMode)) {
-          setModeState(savedMode as ThemeMode);
+        if (savedMode && VALID_MODES.includes(savedMode as AppThemeMode)) {
+          setModeState(savedMode as AppThemeMode);
         } else {
           setModeState(DEFAULT_MODE);
         }
@@ -46,20 +55,22 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     loadThemeMode();
   }, []);
 
-  // Determine resolved mode (what actually applies - light or dark)
-  const resolvedMode: 'light' | 'dark' = (() => {
+  // Determine resolved mode (what actually applies)
+  const resolvedMode: ResolvedThemeMode = (() => {
     if (mode === 'system') {
+      // System mode: use phone setting for light/dark only
       return systemColorScheme === 'dark' ? 'dark' : 'light';
     }
-    return mode;
+    // Explicit theme selection (ocean, emerald, purple stay as-is)
+    return mode as ResolvedThemeMode;
   })();
 
-  const isDark = resolvedMode === 'dark';
-  const theme = getTheme(isDark);
+  const isDark = isDarkTheme(resolvedMode);
+  const theme = getTheme(resolvedMode);
 
-  const setMode = async (newMode: ThemeMode) => {
+  const setMode = async (newMode: AppThemeMode) => {
     try {
-      if (['light', 'dark', 'system'].includes(newMode)) {
+      if (VALID_MODES.includes(newMode)) {
         setModeState(newMode);
         await AsyncStorage.setItem(THEME_MODE_KEY, newMode);
         console.log('[ThemeContext] Theme mode changed to:', newMode);
@@ -94,3 +105,4 @@ export const useTheme = (): ThemeContextValue => {
   }
   return context;
 };
+

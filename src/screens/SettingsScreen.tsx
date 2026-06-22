@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { useTheme } from '../context/ThemeContext';
-import { ThemeMode } from '../theme/theme';
+import { AppThemeMode, AVAILABLE_THEMES } from '../theme/theme';
 
 const SettingsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
@@ -21,7 +21,7 @@ const SettingsScreen = ({ navigation }: any) => {
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [language, setLanguage] = useState('English');
 
-  const handleThemeSelect = useCallback(async (selectedMode: ThemeMode) => {
+  const handleThemeSelect = useCallback(async (selectedMode: AppThemeMode) => {
     await setMode(selectedMode);
     setShowThemeModal(false);
   }, [setMode]);
@@ -35,8 +35,10 @@ const SettingsScreen = ({ navigation }: any) => {
     ]);
   };
 
-  const getModeLabel = (m: ThemeMode): string => {
-    return m.charAt(0).toUpperCase() + m.slice(1);
+  const getModeLabel = (m: AppThemeMode | string): string => {
+    if (m === 'system') return 'System';
+    const theme = AVAILABLE_THEMES.find((t) => t.mode === m);
+    return theme ? theme.label : m.charAt(0).toUpperCase() + m.slice(1);
   };
 
   const styles = createStyles(theme);
@@ -173,7 +175,7 @@ const SettingsScreen = ({ navigation }: any) => {
             </View>
 
             <View style={styles.modalOptions}>
-              {(['light', 'dark', 'system'] as ThemeMode[]).map((themeOption) => (
+              {(['system', 'light', 'dark', 'ocean', 'emerald', 'purple'] as AppThemeMode[]).map((themeOption) => (
                 <TouchableOpacity
                   key={themeOption}
                   style={[styles.modalOption, mode === themeOption && styles.modalOptionSelected]}
