@@ -153,6 +153,13 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     width: '60%',
   },
+  deviceText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 16,
+  },
 });
 
 export default ModernProvisioningLoader;
