@@ -13,6 +13,7 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { getMQTTService } from './src/services/mqttService';
 import { getPermissionService } from './src/services/permissionService';
 import { getNotificationService } from './src/services/notificationService';
+import { getMQTTConfig } from './src/config/mqttConfig';
 
 function App() {
   // Request permissions silently on app startup
@@ -39,19 +40,27 @@ function App() {
         // Step 1: Initialize client (setup callbacks)
         await mqttService.initialize();
 
-        // Step 2: Connect to broker via WebSocket
+        // Step 2: Get MQTT config from environment
+        const mqttConfigBase = getMQTTConfig();
+
+        // Step 3: Generate unique client ID and connect
         const mqttConfig = {
-          url: 'wss://b01052fb9a1942c19262e349a38863d1.s1.eu.hivemq.cloud:8884/mqtt',
-          username: 'bluetooth',
-          password: 'Ble_12345',
-          clientId: `smartapp-${Date.now()}_${Math.random().toString(16).slice(3)}`,
+          url: mqttConfigBase.url,
+          username: mqttConfigBase.username,
+          password: mqttConfigBase.password,
+          clientId: `${mqttConfigBase.clientIdPrefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         };
 
-        console.log('[App] Connecting to HiveMQ...');
+        if (!mqttConfigBase.url || !mqttConfigBase.username || !mqttConfigBase.password) {
+          console.warn('[App] ⚠️ MQTT config incomplete - app will run but MQTT features may not work');
+          return;
+        }
+
+        console.log('[App] Connecting to MQTT broker...');
         const connected = await mqttService.connect(mqttConfig);
 
         if (connected) {
-          console.log('[App] ✅ MQTT connected successfully to HiveMQ');
+          console.log('[App] ✅ MQTT connected successfully');
         } else {
           console.warn('[App] ⚠️ MQTT connection failed, will retry on device subscription');
         }
