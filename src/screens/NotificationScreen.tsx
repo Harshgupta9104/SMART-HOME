@@ -143,7 +143,7 @@ const NotificationScreen = ({ navigation }: any) => {
         <View className="flex-row items-center gap-2">
           <Text className="text-lg font-bold" style={{ color: theme.textPrimary }}>Notifications</Text>
           {unreadCount > 0 && (
-            <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: '#EF4444' }}>
+            <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: theme.danger }}>
               <Text className="text-xs font-bold" style={{ color: '#FFFFFF' }}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
             </View>
           )}
@@ -259,7 +259,7 @@ const NotificationScreen = ({ navigation }: any) => {
                         style={{ backgroundColor: theme.surface }}
                         onPress={() => handleDeleteNotification(item.id)}
                       >
-                        <Icon name="trash-2" size={16} color="#EF4444" />
+                        <Icon name="trash-2" size={16} color={theme.danger} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -272,7 +272,7 @@ const NotificationScreen = ({ navigation }: any) => {
                   style={{ backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }}
                   onPress={handleClearAll}
                 >
-                  <Text className="text-sm font-semibold text-center" style={{ color: '#DC2626' }}>Clear all notifications</Text>
+                  <Text className="text-sm font-semibold text-center" style={{ color: theme.danger }}>Clear all notifications</Text>
                 </TouchableOpacity>
               )}
             </>
