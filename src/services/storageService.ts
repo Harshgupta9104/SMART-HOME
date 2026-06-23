@@ -48,6 +48,7 @@ export interface SavedNetwork {
 
 const PROVISIONED_DEVICES_KEY = '@SmartHome_ProvisionedDevices';
 const SAVED_NETWORKS_KEY = '@SmartHome_SavedNetworks';
+const ROOMS_KEY = '@SmartHome_Rooms';
 const KEYCHAIN_SERVICE = 'SmartHomeApp_WiFiCredentials';
 
 /**
@@ -423,24 +424,162 @@ class StorageService {
   }
 
   /**
-   * Get all unique rooms from provisioned devices
+   * Default rooms if no custom rooms are saved
+   */
+  private readonly DEFAULT_ROOMS = ['Living room', 'Bedroom', 'Kitchen', 'Bathroom', 'Office'];
+
+  /**
+   * Validate room name
+   */
+  private validateRoomName(name: string): void {
+    const trimmed = name.trim();
+
+    if (!trimmed) {
+      throw new Error('Room name cannot be empty');
+    }
+
+    if (trimmed.length < 2) {
+      throw new Error('Room name must be at least 2 characters');
+    }
+
+    if (trimmed.length > 30) {
+      throw new Error('Room name must be at most 30 characters');
+    }
+
+    if (trimmed.toLowerCase() === 'all rooms') {
+      throw new Error('"All rooms" is a reserved name');
+    }
+  }
+
+  /**
+   * Get all saved custom rooms (returns defaults if none are saved)
    */
   async getRooms(): Promise<string[]> {
     try {
-      const devices = await this.getProvisionedDevices();
-      const roomsSet = new Set<string>();
+      const data = await AsyncStorage.getItem(ROOMS_KEY);
+      
+      if (!data) {
+        console.log('[Storage] No custom rooms found, returning defaults');
+        return this.DEFAULT_ROOMS;
+      }
 
-      devices.forEach(device => {
-        const room = device.roomName || 'Unassigned';
-        roomsSet.add(room);
-      });
+      let rooms: string[] = [];
+      try {
+        rooms = JSON.parse(data);
+      } catch (parseError) {
+        console.error('[Storage] JSON parse error for rooms, returning defaults:', parseError);
+        return this.DEFAULT_ROOMS;
+      }
 
-      const rooms = Array.from(roomsSet).sort();
-      console.log('[Storage] Retrieved unique rooms:', rooms);
-      return rooms;
+      if (!Array.isArray(rooms)) {
+        console.error('[Storage] Stored rooms data is not an array, returning defaults');
+        return this.DEFAULT_ROOMS;
+      }
+
+      const validRooms = rooms.filter(room => typeof room === 'string' && room.trim().length > 0);
+      console.log('[Storage] Retrieved custom rooms:', validRooms);
+      return validRooms.length > 0 ? validRooms : this.DEFAULT_ROOMS;
     } catch (error) {
       console.error('[Storage] Error getting rooms:', error);
-      return [];
+      return this.DEFAULT_ROOMS;
+    }
+  }
+
+  /**
+   * Save custom rooms list
+   */
+  async saveRooms(rooms: string[]): Promise<void> {
+    try {
+      // Validate all room names
+      rooms.forEach(room => this.validateRoomName(room));
+
+      // Check for duplicates (case-insensitive)
+      const lowerRooms = rooms.map(r => r.trim().toLowerCase());
+      const uniqueRooms = new Set(lowerRooms);
+
+      if (uniqueRooms.size !== rooms.length) {
+        throw new Error('Duplicate room names (case-insensitive)');
+      }
+
+      // Store the original case
+      const trimmedRooms = rooms.map(r => r.trim());
+      await AsyncStorage.setItem(ROOMS_KEY, JSON.stringify(trimmedRooms));
+      console.log('[Storage] Rooms saved:', trimmedRooms);
+    } catch (error) {
+      console.error('[Storage] Error saving rooms:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add a new room
+   */
+  async addRoom(roomName: string): Promise<void> {
+    try {
+      this.validateRoomName(roomName);
+
+      const rooms = await this.getRooms();
+      const trimmedName = roomName.trim();
+
+      // Check if room already exists (case-insensitive)
+      const exists = rooms.some(r => r.toLowerCase() === trimmedName.toLowerCase());
+      if (exists) {
+        throw new Error(`Room "${trimmedName}" already exists`);
+      }
+
+      rooms.push(trimmedName);
+      await this.saveRooms(rooms);
+      console.log('[Storage] Room added:', trimmedName);
+    } catch (error) {
+      console.error('[Storage] Error adding room:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a room and optionally reassign its devices
+   */
+  async deleteRoom(roomName: string): Promise<void> {
+    try {
+      const trimmedName = roomName.trim();
+
+      if (!trimmedName) {
+        throw new Error('Room name cannot be empty');
+      }
+
+      const rooms = await this.getRooms();
+
+      // Check if room exists (case-insensitive)
+      const roomExists = rooms.some(r => r.toLowerCase() === trimmedName.toLowerCase());
+      if (!roomExists) {
+        throw new Error(`Room "${trimmedName}" not found`);
+      }
+
+      // Get devices in this room
+      const devices = await this.getProvisionedDevices();
+      const devicesInRoom = devices.filter(
+        d => (d.roomName || 'Unassigned').toLowerCase() === trimmedName.toLowerCase()
+      );
+
+      // If devices exist, reassign them to "Unassigned"
+      if (devicesInRoom.length > 0) {
+        const updated = devices.map(d => {
+          if ((d.roomName || 'Unassigned').toLowerCase() === trimmedName.toLowerCase()) {
+            return { ...d, roomName: 'Unassigned' };
+          }
+          return d;
+        });
+        await AsyncStorage.setItem(PROVISIONED_DEVICES_KEY, JSON.stringify(updated));
+        console.log('[Storage] Reassigned', devicesInRoom.length, 'devices to Unassigned');
+      }
+
+      // Remove room from list
+      const updatedRooms = rooms.filter(r => r.toLowerCase() !== trimmedName.toLowerCase());
+      await this.saveRooms(updatedRooms);
+      console.log('[Storage] Room deleted:', trimmedName);
+    } catch (error) {
+      console.error('[Storage] Error deleting room:', error);
+      throw error;
     }
   }
 

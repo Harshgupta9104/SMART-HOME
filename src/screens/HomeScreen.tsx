@@ -37,13 +37,28 @@ const HomeScreen = ({ navigation }: any) => {
   const storageService = getStorageService();
   const deviceDataService = getDeviceDataService();
   const unsubscribersRef = useRef<Map<string, () => void>>(new Map());
-  const rooms = ['All rooms', 'Living room', 'Bedroom', 'Kitchen', 'Bathroom', 'Office'];
+  const [rooms, setRooms] = useState<string[]>(['All rooms']);
 
   useFocusEffect(
     useCallback(() => {
       loadProvisionedDevices();
+      loadRooms();
     }, [])
   );
+
+  const loadRooms = async () => {
+    try {
+      const savedRooms = await storageService.getRooms();
+      setRooms(['All rooms', ...savedRooms]);
+      
+      // If selected room was deleted, reset to "All rooms"
+      if (selectedRoom !== 'All rooms' && !['All rooms', ...savedRooms].includes(selectedRoom)) {
+        setSelectedRoom('All rooms');
+      }
+    } catch (error) {
+      console.error('[HomeScreen] Error loading rooms:', error);
+    }
+  };
 
   const loadProvisionedDevices = async () => {
     try {
