@@ -46,9 +46,13 @@ export interface SavedNetwork {
   savedAt: string;
 }
 
+// Room sorting mode type
+export type RoomSortMode = 'custom' | 'name_asc' | 'name_desc' | 'device_count_desc' | 'device_count_asc';
+
 const PROVISIONED_DEVICES_KEY = '@SmartHome_ProvisionedDevices';
 const SAVED_NETWORKS_KEY = '@SmartHome_SavedNetworks';
 const ROOMS_KEY = '@SmartHome_Rooms';
+const ROOM_SORT_MODE_KEY = '@SmartHome_RoomSortMode';
 const KEYCHAIN_SERVICE = 'SmartHomeApp_WiFiCredentials';
 
 /**
@@ -724,6 +728,53 @@ class StorageService {
     } catch (error) {
       console.error('[Storage] Error checking device existence:', error);
       return false;
+    }
+  }
+
+  /**
+   * Get the current room sorting mode
+   */
+  async getRoomSortMode(): Promise<RoomSortMode> {
+    try {
+      const data = await AsyncStorage.getItem(ROOM_SORT_MODE_KEY);
+      
+      if (!data) {
+        console.log('[Storage] No room sort mode found, returning default: custom');
+        return 'custom';
+      }
+
+      const sortMode = JSON.parse(data) as RoomSortMode;
+      const validModes: RoomSortMode[] = ['custom', 'name_asc', 'name_desc', 'device_count_desc', 'device_count_asc'];
+      
+      if (!validModes.includes(sortMode)) {
+        console.log('[Storage] Invalid sort mode, returning default: custom');
+        return 'custom';
+      }
+
+      console.log('[Storage] Retrieved room sort mode:', sortMode);
+      return sortMode;
+    } catch (error) {
+      console.error('[Storage] Error getting room sort mode:', error);
+      return 'custom';
+    }
+  }
+
+  /**
+   * Save the room sorting mode
+   */
+  async saveRoomSortMode(mode: RoomSortMode): Promise<void> {
+    try {
+      const validModes: RoomSortMode[] = ['custom', 'name_asc', 'name_desc', 'device_count_desc', 'device_count_asc'];
+      
+      if (!validModes.includes(mode)) {
+        throw new Error(`Invalid sort mode: ${mode}`);
+      }
+
+      await AsyncStorage.setItem(ROOM_SORT_MODE_KEY, JSON.stringify(mode));
+      console.log('[Storage] Room sort mode saved:', mode);
+    } catch (error) {
+      console.error('[Storage] Error saving room sort mode:', error);
+      throw error;
     }
   }
 }

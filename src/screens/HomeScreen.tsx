@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
-import { getStorageService, ProvisionedDevice } from '../services/storageService';
+import { getStorageService, ProvisionedDevice, RoomSortMode } from '../services/storageService';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 import { useTheme } from '../context/ThemeContext';
 
@@ -49,10 +49,12 @@ const HomeScreen = ({ navigation }: any) => {
   const loadRooms = async () => {
     try {
       const savedRooms = await storageService.getRooms();
-      setRooms(['All rooms', ...savedRooms]);
+      const sortMode = await storageService.getRoomSortMode();
+      const sortedRooms = sortRooms(savedRooms, sortMode, devices);
+      setRooms(['All rooms', ...sortedRooms]);
       
       // If selected room was deleted, reset to "All rooms"
-      if (selectedRoom !== 'All rooms' && !['All rooms', ...savedRooms].includes(selectedRoom)) {
+      if (selectedRoom !== 'All rooms' && !['All rooms', ...sortedRooms].includes(selectedRoom)) {
         setSelectedRoom('All rooms');
       }
     } catch (error) {
@@ -84,6 +86,7 @@ const HomeScreen = ({ navigation }: any) => {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadProvisionedDevices();
+    loadRooms();
     setTimeout(() => setRefreshing(false), 1000);
   }, []);
 
@@ -204,6 +207,39 @@ const HomeScreen = ({ navigation }: any) => {
   const getRoomDeviceCount = (room: string): number => {
     if (room === 'All rooms') return devices.length;
     return devices.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
+  };
+
+  // Helper: Get device count by room name (for sorting)
+  const getRoomDeviceCountByName = (room: string, deviceList: ProvisionedDevice[]): number => {
+    return deviceList.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
+  };
+
+  // Helper: Sort rooms based on sort mode
+  const sortRooms = (roomList: string[], sortMode: RoomSortMode, deviceList: ProvisionedDevice[]): string[] => {
+    const roomsCopy = [...roomList];
+    switch (sortMode) {
+      case 'name_asc':
+        return roomsCopy.sort((a, b) => a.localeCompare(b));
+      case 'name_desc':
+        return roomsCopy.sort((a, b) => b.localeCompare(a));
+      case 'device_count_desc':
+        return roomsCopy.sort((a, b) => {
+          const countDiff =
+            getRoomDeviceCountByName(b, deviceList) - getRoomDeviceCountByName(a, deviceList);
+          if (countDiff !== 0) return countDiff;
+          return a.localeCompare(b);
+        });
+      case 'device_count_asc':
+        return roomsCopy.sort((a, b) => {
+          const countDiff =
+            getRoomDeviceCountByName(a, deviceList) - getRoomDeviceCountByName(b, deviceList);
+          if (countDiff !== 0) return countDiff;
+          return a.localeCompare(b);
+        });
+      case 'custom':
+      default:
+        return roomsCopy;
+    }
   };
 
   // Filter devices by selected room
