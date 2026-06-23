@@ -9,12 +9,14 @@ import {
 } from 'react-native';
 import { ProvisionedDevice } from '../services/storageService';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
+import { useTheme } from '../context/ThemeContext';
 
 interface ControllerScreenProps {
   device: ProvisionedDevice;
 }
 
 const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
+  const { theme } = useTheme();
   const [relayStatus, setRelayStatus] = useState(false);
   const [isUpdatingRelay, setIsUpdatingRelay] = useState(false);
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null);
@@ -119,7 +121,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
             styles.cardGlow,
             {
               opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.18] }),
-              backgroundColor: '#DC2626',
+              backgroundColor: theme.danger,
             },
           ]}
           pointerEvents="none"
@@ -144,8 +146,8 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
                   opacity: ringOpacity,
                   shadowRadius: glowRadius,
                   shadowOpacity: glowOpacity,
-                  shadowColor: '#EF4444',
-                  borderColor: relayStatus ? '#EF4444' : 'transparent',
+                  shadowColor: theme.danger,
+                  borderColor: relayStatus ? theme.danger : 'transparent',
                 },
               ]}
             />
@@ -162,7 +164,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
         {/* Status text */}
         <View style={styles.statusRow}>
           <View style={[styles.statusDot, relayStatus ? styles.statusDotOn : styles.statusDotOff]} />
-          <Text style={[styles.statusLabel, { color: relayStatus ? '#DC2626' : '#9CA3AF' }]}>
+          <Text style={[styles.statusLabel, { color: relayStatus ? theme.danger : theme.textMuted }]}>
             {isUpdatingRelay ? 'Updating...' : relayStatus ? 'OFF  —  Relay is off' : 'ON  —  Relay is active'}
           </Text>
         </View>
@@ -203,7 +205,6 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F6F7FB',
   },
   content: {
     padding: 16,
@@ -212,7 +213,6 @@ const styles = StyleSheet.create({
 
   // Control Card
   controlCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 28,
     paddingVertical: 36,
     paddingHorizontal: 24,
@@ -235,7 +235,6 @@ const styles = StyleSheet.create({
   controlName: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
     marginBottom: 32,
     letterSpacing: 0.3,
   },
@@ -258,16 +257,11 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: '#E5E7EB',
   },
   relayCircleOn: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#EF4444',
-    shadowColor: '#EF4444',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 24,
@@ -294,15 +288,12 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   statusDotOn: {
-    backgroundColor: '#DC2626',
-    shadowColor: '#DC2626',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 6,
     elevation: 4,
   },
   statusDotOff: {
-    backgroundColor: '#D1D5DB',
   },
   statusLabel: {
     fontSize: 13,
@@ -311,14 +302,12 @@ const styles = StyleSheet.create({
   },
   tapHint: {
     fontSize: 11,
-    color: '#D1D5DB',
     marginTop: 4,
     letterSpacing: 0.5,
   },
 
   // Stats Card
   statsCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     shadowColor: '#000',
@@ -330,7 +319,6 @@ const styles = StyleSheet.create({
   statsTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1F2937',
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -341,19 +329,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   statRowLast: {
     borderBottomWidth: 0,
   },
   statLabel: {
     fontSize: 13,
-    color: '#9CA3AF',
     fontWeight: '500',
   },
   statValue: {
     fontSize: 13,
-    color: '#1F2937',
     fontWeight: '700',
   },
 });

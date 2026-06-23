@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { ProvisionedDevice } from '../services/storageService';
 import { getMQTTService } from '../services/mqttService';
+import { useTheme } from '../context/ThemeContext';
 import MetricsScreen from './MetricsScreen';
 import ControllerScreen from './ControllerScreen';
 import SettingsScreen from './SettingsScreen';
@@ -32,6 +33,7 @@ const SettingsTab = ({ device, onDeviceRemoved }: { device: ProvisionedDevice; o
 
 const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
   const device: ProvisionedDevice = route?.params?.device;
   const mqttService = getMQTTService();
   const mqttConnected = mqttService.isConnectedToMQTT();
@@ -42,31 +44,31 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
 
   if (!device) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Text style={styles.errorText}>Device not found</Text>
+      <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
+        <Text style={[styles.errorText, { color: theme.textMuted }]}>Device not found</Text>
       </View>
     );
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'online': return '#10B981';
-      case 'offline': return '#EF4444';
-      case 'connecting': return '#F59E0B';
-      default: return '#9CA3AF';
+      case 'online': return theme.success;
+      case 'offline': return theme.danger;
+      case 'connecting': return theme.warning;
+      default: return theme.textMuted;
     }
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>‹</Text>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: theme.primarySoft }]}>
+          <Text style={[styles.backIcon, { color: theme.textPrimary }]}>‹</Text>
         </TouchableOpacity>
 
         <View style={styles.headerInfo}>
-          <Text style={styles.deviceName} numberOfLines={1}>{device.name}</Text>
+          <Text style={[styles.deviceName, { color: theme.textPrimary }]} numberOfLines={1}>{device.name}</Text>
           <View style={styles.statusRow}>
             <View style={[styles.statusDot, { backgroundColor: getStatusColor(device.status) }]} />
             <Text style={[styles.statusText, { color: getStatusColor(device.status) }]}>
@@ -76,7 +78,7 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
         </View>
 
         {/* Notification Bell Icon */}
-        <TouchableOpacity style={styles.notificationBtn}>
+        <TouchableOpacity style={[styles.notificationBtn, { backgroundColor: theme.primarySoft }]}>
         </TouchableOpacity>
       </View>
 
@@ -84,19 +86,19 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
       <Tab.Navigator
         initialRouteName="Controller"
         screenOptions={{
-          tabBarActiveTintColor: '#3B82F6',
-          tabBarInactiveTintColor: '#9CA3AF',
+          tabBarActiveTintColor: theme.primary,
+          tabBarInactiveTintColor: theme.textMuted,
           tabBarIndicatorStyle: {
-            backgroundColor: '#3B82F6',
+            backgroundColor: theme.primary,
             height: 2,
             borderRadius: 2,
           },
           tabBarStyle: {
-            backgroundColor: '#FFFFFF',
+            backgroundColor: theme.surface,
             elevation: 0,
             shadowOpacity: 0,
             borderBottomWidth: 1,
-            borderBottomColor: '#F3F4F6',
+            borderBottomColor: theme.border,
           },
           tabBarLabelStyle: {
             fontSize: 13,
@@ -134,11 +136,9 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F6F7FB',
   },
   errorText: {
     fontSize: 16,
-    color: '#9CA3AF',
     textAlign: 'center',
     marginTop: 40,
   },
@@ -149,22 +149,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
     gap: 12,
   },
   backBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
   backIcon: {
     fontSize: 24,
-    color: '#1F2937',
     fontWeight: '300',
     lineHeight: 28,
   },
@@ -172,7 +168,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -185,7 +180,6 @@ const styles = StyleSheet.create({
   deviceName: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#1F2937',
     marginBottom: 3,
   },
   statusRow: {

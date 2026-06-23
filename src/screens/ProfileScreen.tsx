@@ -250,11 +250,11 @@ const ProfileScreen = ({ navigation }: any) => {
           </TouchableOpacity>
 
           <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }} onPress={handleLogout}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: '#EF4444' + '20' }}>
-              <Icon name="log-out" size={20} color="#EF4444" />
+            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.danger + '20' }}>
+              <Icon name="log-out" size={20} color={theme.danger} />
             </View>
             <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: '#EF4444' }}>Logout</Text>
+              <Text className="text-base font-semibold" style={{ color: theme.danger }}>Logout</Text>
             </View>
             <Icon name="chevron-right" size={20} color={theme.border} />
           </TouchableOpacity>
