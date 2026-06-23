@@ -177,8 +177,24 @@ const HomeScreen = ({ navigation }: any) => {
   };
 
   const getDeviceRoom = (device: ProvisionedDevice): string => {
-    return device.roomName || 'Home';
+    return device.roomName || 'Unassigned';
   };
+
+  // Helper: Normalize room names for safe comparison
+  const normalizeRoomName = (roomName?: string): string => {
+    return (roomName || 'Unassigned').trim().toLowerCase();
+  };
+
+  // Helper: Get device count for a specific room
+  const getRoomDeviceCount = (room: string): number => {
+    if (room === 'All rooms') return devices.length;
+    return devices.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
+  };
+
+  // Filter devices by selected room
+  const filteredDevices = selectedRoom === 'All rooms'
+    ? devices
+    : devices.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(selectedRoom));
 
   const getActiveCount = (): number => {
     return devices.filter(device => device.status === 'online' && getDeviceToggleState(device)).length;
@@ -261,28 +277,31 @@ const HomeScreen = ({ navigation }: any) => {
         {/* Room Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roomTabsScroll}>
           <View style={styles.roomTabsContent}>
-            {rooms.map(room => (
-              <TouchableOpacity
-                key={room}
-                style={[
-                  styles.roomTab,
-                  {
-                    backgroundColor: selectedRoom === room ? theme.primary : theme.chipBackground,
-                    borderColor: selectedRoom === room ? 'transparent' : theme.border,
-                  },
-                ]}
-                onPress={() => setSelectedRoom(room)}
-              >
-                <Text
+            {rooms.map(room => {
+              const roomCount = getRoomDeviceCount(room);
+              return (
+                <TouchableOpacity
+                  key={room}
                   style={[
-                    styles.roomTabText,
-                    { color: selectedRoom === room ? theme.background : theme.textSecondary },
+                    styles.roomTab,
+                    {
+                      backgroundColor: selectedRoom === room ? theme.primary : theme.chipBackground,
+                      borderColor: selectedRoom === room ? 'transparent' : theme.border,
+                    },
                   ]}
+                  onPress={() => setSelectedRoom(room)}
                 >
-                  {room}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.roomTabText,
+                      { color: selectedRoom === room ? theme.background : theme.textSecondary },
+                    ]}
+                  >
+                    {room} {roomCount > 0 ? `(${roomCount})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </ScrollView>
 
@@ -292,6 +311,15 @@ const HomeScreen = ({ navigation }: any) => {
             <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No devices found</Text>
             <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
               Tap "Add Device" to connect your first ESP32 device
+            </Text>
+          </View>
+        ) : filteredDevices.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
+              No devices in {selectedRoom}
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
+              Devices assigned to this room will appear here
             </Text>
           </View>
         ) : (
@@ -305,7 +333,7 @@ const HomeScreen = ({ navigation }: any) => {
             </View>
 
             <View style={styles.deviceGrid}>
-              {devices.map(device => (
+              {filteredDevices.map(device => (
                 <View key={device.id} style={styles.deviceGridCell}>
                   <TouchableOpacity
                     style={[
@@ -561,7 +589,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   deviceGridCell: {
-    width: '50%',
+    width: '48%',
   },
   deviceCard: {
     borderRadius: 12,
