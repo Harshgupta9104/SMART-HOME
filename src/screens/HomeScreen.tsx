@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
-import { getStorageService, ProvisionedDevice } from '../services/storageService';
+import { getStorageService, ProvisionedDevice, RoomSortMode } from '../services/storageService';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 import { useTheme } from '../context/ThemeContext';
 
@@ -37,13 +37,30 @@ const HomeScreen = ({ navigation }: any) => {
   const storageService = getStorageService();
   const deviceDataService = getDeviceDataService();
   const unsubscribersRef = useRef<Map<string, () => void>>(new Map());
-  const rooms = ['All rooms', 'Living room', 'Bedroom', 'Kitchen', 'Bathroom', 'Office'];
+  const [rooms, setRooms] = useState<string[]>(['All rooms']);
 
   useFocusEffect(
     useCallback(() => {
       loadProvisionedDevices();
+      loadRooms();
     }, [])
   );
+
+  const loadRooms = async () => {
+    try {
+      const savedRooms = await storageService.getRooms();
+      const sortMode = await storageService.getRoomSortMode();
+      const sortedRooms = sortRooms(savedRooms, sortMode, devices);
+      setRooms(['All rooms', ...sortedRooms]);
+      
+      // If selected room was deleted, reset to "All rooms"
+      if (selectedRoom !== 'All rooms' && !['All rooms', ...sortedRooms].includes(selectedRoom)) {
+        setSelectedRoom('All rooms');
+      }
+    } catch (error) {
+      console.error('[HomeScreen] Error loading rooms:', error);
+    }
+  };
 
   const loadProvisionedDevices = async () => {
     try {
@@ -69,6 +86,7 @@ const HomeScreen = ({ navigation }: any) => {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadProvisionedDevices();
+    loadRooms();
     setTimeout(() => setRefreshing(false), 1000);
   }, []);
 
@@ -177,8 +195,57 @@ const HomeScreen = ({ navigation }: any) => {
   };
 
   const getDeviceRoom = (device: ProvisionedDevice): string => {
-    return device.roomName || 'Home';
+    return device.roomName || 'Unassigned';
   };
+
+  // Helper: Normalize room names for safe comparison
+  const normalizeRoomName = (roomName?: string): string => {
+    return (roomName || 'Unassigned').trim().toLowerCase();
+  };
+
+  // Helper: Get device count for a specific room
+  const getRoomDeviceCount = (room: string): number => {
+    if (room === 'All rooms') return devices.length;
+    return devices.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
+  };
+
+  // Helper: Get device count by room name (for sorting)
+  const getRoomDeviceCountByName = (room: string, deviceList: ProvisionedDevice[]): number => {
+    return deviceList.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
+  };
+
+  // Helper: Sort rooms based on sort mode
+  const sortRooms = (roomList: string[], sortMode: RoomSortMode, deviceList: ProvisionedDevice[]): string[] => {
+    const roomsCopy = [...roomList];
+    switch (sortMode) {
+      case 'name_asc':
+        return roomsCopy.sort((a, b) => a.localeCompare(b));
+      case 'name_desc':
+        return roomsCopy.sort((a, b) => b.localeCompare(a));
+      case 'device_count_desc':
+        return roomsCopy.sort((a, b) => {
+          const countDiff =
+            getRoomDeviceCountByName(b, deviceList) - getRoomDeviceCountByName(a, deviceList);
+          if (countDiff !== 0) return countDiff;
+          return a.localeCompare(b);
+        });
+      case 'device_count_asc':
+        return roomsCopy.sort((a, b) => {
+          const countDiff =
+            getRoomDeviceCountByName(a, deviceList) - getRoomDeviceCountByName(b, deviceList);
+          if (countDiff !== 0) return countDiff;
+          return a.localeCompare(b);
+        });
+      case 'custom':
+      default:
+        return roomsCopy;
+    }
+  };
+
+  // Filter devices by selected room
+  const filteredDevices = selectedRoom === 'All rooms'
+    ? devices
+    : devices.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(selectedRoom));
 
   const getActiveCount = (): number => {
     return devices.filter(device => device.status === 'online' && getDeviceToggleState(device)).length;
@@ -261,28 +328,31 @@ const HomeScreen = ({ navigation }: any) => {
         {/* Room Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roomTabsScroll}>
           <View style={styles.roomTabsContent}>
-            {rooms.map(room => (
-              <TouchableOpacity
-                key={room}
-                style={[
-                  styles.roomTab,
-                  {
-                    backgroundColor: selectedRoom === room ? theme.primary : theme.chipBackground,
-                    borderColor: selectedRoom === room ? 'transparent' : theme.border,
-                  },
-                ]}
-                onPress={() => setSelectedRoom(room)}
-              >
-                <Text
+            {rooms.map(room => {
+              const roomCount = getRoomDeviceCount(room);
+              return (
+                <TouchableOpacity
+                  key={room}
                   style={[
-                    styles.roomTabText,
-                    { color: selectedRoom === room ? theme.background : theme.textSecondary },
+                    styles.roomTab,
+                    {
+                      backgroundColor: selectedRoom === room ? theme.primary : theme.chipBackground,
+                      borderColor: selectedRoom === room ? 'transparent' : theme.border,
+                    },
                   ]}
+                  onPress={() => setSelectedRoom(room)}
                 >
-                  {room}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.roomTabText,
+                      { color: selectedRoom === room ? theme.background : theme.textSecondary },
+                    ]}
+                  >
+                    {room} {roomCount > 0 ? `(${roomCount})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </ScrollView>
 
@@ -292,6 +362,15 @@ const HomeScreen = ({ navigation }: any) => {
             <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No devices found</Text>
             <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
               Tap "Add Device" to connect your first ESP32 device
+            </Text>
+          </View>
+        ) : filteredDevices.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
+              No devices in {selectedRoom}
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
+              Devices assigned to this room will appear here
             </Text>
           </View>
         ) : (
@@ -305,7 +384,7 @@ const HomeScreen = ({ navigation }: any) => {
             </View>
 
             <View style={styles.deviceGrid}>
-              {devices.map(device => (
+              {filteredDevices.map(device => (
                 <View key={device.id} style={styles.deviceGridCell}>
                   <TouchableOpacity
                     style={[
@@ -561,7 +640,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   deviceGridCell: {
-    width: '50%',
+    width: '48%',
   },
   deviceCard: {
     borderRadius: 12,

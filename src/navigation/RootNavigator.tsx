@@ -15,6 +15,7 @@ import DeviceNamingScreen from '../screens/DeviceNamingScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import RoomManagementScreen from '../screens/RoomManagementScreen';
 import { useTheme } from '../context/ThemeContext';
 import { getNavigationTheme } from '../theme/theme';
 
@@ -129,6 +130,13 @@ const RootNavigator = () => {
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="RoomManagement"
+          component={RoomManagementScreen}
           options={{
             headerShown: false,
           }}

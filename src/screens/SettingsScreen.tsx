@@ -102,6 +102,17 @@ const SettingsScreen = ({ navigation }: any) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>DEVICE SETTINGS</Text>
           
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('RoomManagement')}>
+            <View style={styles.menuIconContainer}>
+              <Icon name="home" size={20} color={theme.primary} />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Manage Rooms</Text>
+              <Text style={styles.menuSubtitle}>Create and organize rooms</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={theme.textMuted} />
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.menuItem}>
             <View style={styles.menuIconContainer}>
               <Icon name="wifi" size={20} color={theme.primary} />
