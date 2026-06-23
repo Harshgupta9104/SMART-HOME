@@ -12,7 +12,7 @@ import { getMQTTService } from '../services/mqttService';
 import { useTheme } from '../context/ThemeContext';
 import MetricsScreen from './MetricsScreen';
 import ControllerScreen from './ControllerScreen';
-import SettingsScreen from './SettingsScreen';
+import DeviceSettingsScreen from './DeviceSettingsScreen';
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -29,7 +29,7 @@ const ControllerTab = ({ device }: { device: ProvisionedDevice }) =>
   <ControllerScreen device={device} />;
 
 const SettingsTab = ({ device, onDeviceRemoved }: { device: ProvisionedDevice; onDeviceRemoved: () => void }) =>
-  <SettingsScreen device={device} onDeviceRemoved={onDeviceRemoved} />;
+  <DeviceSettingsScreen device={device} onDeviceRemoved={onDeviceRemoved} />;
 
 const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
