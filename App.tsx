@@ -28,8 +28,12 @@ function App() {
     };
 
     requestPermissions();
+  }, []);
 
-    // Initialize MQTT connection on app startup
+  // Initialize MQTT connection in background (non-blocking)
+  useEffect(() => {
+    let isMounted = true;
+
     const initializeApp = async () => {
       try {
         // Initialize notification service
@@ -59,20 +63,26 @@ function App() {
         console.log('[App] Connecting to MQTT broker...');
         const connected = await mqttService.connect(mqttConfig);
 
-        if (connected) {
-          console.log('[App] ✅ MQTT connected successfully');
-        } else {
-          console.warn('[App] ⚠️ MQTT connection failed, will retry on device subscription');
+        if (isMounted) {
+          if (connected) {
+            console.log('[App] ✅ MQTT connected successfully');
+          } else {
+            console.warn('[App] ⚠️ MQTT connection failed, will retry on device subscription');
+          }
         }
       } catch (error) {
-        console.error('[App] Error initializing:', error);
+        if (isMounted) {
+          console.error('[App] Error initializing:', error);
+        }
       }
     };
 
+    // Start initialization in background (non-blocking)
     initializeApp();
 
     // Cleanup on app unmount
     return () => {
+      isMounted = false;
       getMQTTService().disconnect();
     };
   }, []);
