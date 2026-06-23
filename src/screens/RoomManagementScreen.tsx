@@ -449,7 +449,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
             Tap edit to rename or delete unused rooms
           </Text>
           <Text style={[styles.dragHint, { color: theme.textMuted }]}>
-            Hold and drag rooms to customize dashboard chip order
+            Hold a room, then move it up or down to customize dashboard chip order
           </Text>
 
           {loading ? (
