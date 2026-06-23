@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   TextInput,
   SafeAreaView,
   FlatList,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -28,6 +30,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
   const [editingRoom, setEditingRoom] = useState<string | null>(null);
   const [editingRoomName, setEditingRoomName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [draggingRoom, setDraggingRoom] = useState<string | null>(null);
 
   const storageService = getStorageService();
 
@@ -107,6 +110,22 @@ const RoomManagementScreen = ({ navigation }: any) => {
     }
   };
 
+  const handleRoomReorder = async (reorderedRooms: string[]) => {
+    try {
+      // Save the new order
+      await storageService.saveRooms(reorderedRooms);
+      // Set sort mode to custom
+      await storageService.saveRoomSortMode('custom');
+      // Update state
+      setRooms(reorderedRooms);
+      setSortMode('custom');
+      setDraggingRoom(null);
+    } catch (error) {
+      console.error('[RoomManagement] Error reordering rooms:', error);
+      Alert.alert('Error', 'Failed to reorder rooms');
+    }
+  };
+
   const renderSortOption = (mode: RoomSortMode) => (
     <TouchableOpacity
       key={mode}
@@ -135,9 +154,31 @@ const RoomManagementScreen = ({ navigation }: any) => {
 
   const renderRoomCard = (room: string) => {
     const count = getRoomDeviceCount(room);
+    const isDragging = draggingRoom === room;
+
     return (
-      <View key={room} style={[styles.roomCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <Animated.View
+        key={room}
+        style={[
+          styles.roomCard,
+          { backgroundColor: theme.card, borderColor: theme.border },
+          isDragging && {
+            backgroundColor: theme.surface,
+            borderColor: theme.primary,
+            transform: [{ scale: 1.02 }],
+          },
+        ]}
+      >
         <View style={styles.roomCardLeft}>
+          {/* Drag Handle */}
+          <TouchableOpacity
+            style={styles.dragHandle}
+            onLongPress={() => setDraggingRoom(room)}
+            delayLongPress={200}
+          >
+            <Icon name="menu" size={18} color={isDragging ? theme.primary : theme.textMuted} />
+          </TouchableOpacity>
+
           <View style={[styles.roomIconBox, { backgroundColor: theme.primarySoft }]}>
             <Icon name="home" size={20} color={theme.primary} />
           </View>
@@ -165,17 +206,57 @@ const RoomManagementScreen = ({ navigation }: any) => {
               setEditingRoom(room);
               setEditingRoomName(room);
             }}
+            disabled={isDragging}
           >
             <Icon name="edit-2" size={18} color={theme.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}
             onPress={() => handleDeleteRoom(room)}
+            disabled={isDragging}
           >
             <Icon name="trash-2" size={18} color={theme.danger} />
           </TouchableOpacity>
         </View>
-      </View>
+
+        {/* Drag Up/Down Controls when Dragging */}
+        {isDragging && (
+          <View style={styles.dragControls}>
+            <TouchableOpacity
+              style={[styles.dragButton, { backgroundColor: theme.primary }]}
+              onPress={() => {
+                const index = rooms.indexOf(room);
+                if (index > 0) {
+                  const newRooms = [...rooms];
+                  [newRooms[index - 1], newRooms[index]] = [newRooms[index], newRooms[index - 1]];
+                  handleRoomReorder(newRooms);
+                }
+              }}
+            >
+              <Icon name="arrow-up" size={16} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.dragButton, { backgroundColor: theme.primary }]}
+              onPress={() => {
+                const index = rooms.indexOf(room);
+                if (index < rooms.length - 1) {
+                  const newRooms = [...rooms];
+                  [newRooms[index], newRooms[index + 1]] = [newRooms[index + 1], newRooms[index]];
+                  handleRoomReorder(newRooms);
+                }
+              }}
+            >
+              <Icon name="arrow-down" size={16} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.dragButton, { backgroundColor: theme.textMuted }]}
+              onPress={() => setDraggingRoom(null)}
+            >
+              <Icon name="x" size={16} color="white" />
+            </TouchableOpacity>
+          </View>
+        )}
+      </Animated.View>
     );
   };
 
@@ -367,6 +448,9 @@ const RoomManagementScreen = ({ navigation }: any) => {
           <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
             Tap edit to rename or delete unused rooms
           </Text>
+          <Text style={[styles.dragHint, { color: theme.textMuted }]}>
+            Hold and drag rooms to customize dashboard chip order
+          </Text>
 
           {loading ? (
             <View style={styles.loadingContainer}>
@@ -541,6 +625,13 @@ const createStyles = (theme: any) =>
       marginBottom: 12,
       paddingHorizontal: 2,
     },
+    dragHint: {
+      fontSize: 11,
+      fontWeight: '400',
+      marginBottom: 12,
+      paddingHorizontal: 2,
+      fontStyle: 'italic',
+    },
     previewScroll: {
       marginHorizontal: -16,
       paddingHorizontal: 16,
@@ -634,6 +725,28 @@ const createStyles = (theme: any) =>
       flexDirection: 'row',
       gap: 8,
       marginLeft: 10,
+    },
+    dragHandle: {
+      width: 40,
+      height: 44,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginLeft: -8,
+    },
+    dragControls: {
+      position: 'absolute',
+      top: '50%',
+      right: 14,
+      transform: [{ translateY: -50 }],
+      flexDirection: 'row',
+      gap: 6,
+    },
+    dragButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     actionButton: {
       width: 44,
