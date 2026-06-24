@@ -48,6 +48,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
   const [newRoomName, setNewRoomName] = useState('');
   const [sortMode, setSortMode] = useState<RoomSortMode>('custom');
   const [isReorderMode, setIsReorderMode] = useState(false);
+  const [previousSortMode, setPreviousSortMode] = useState<RoomSortMode>('custom');
   const [showSortSheet, setShowSortSheet] = useState(false);
   const [showAddRoomSheet, setShowAddRoomSheet] = useState(false);
   const [addRoomName, setAddRoomName] = useState('');
@@ -72,7 +73,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
       const roomsWithDevices: RoomItem[] = realRooms.map((name) => {
         const devicesInRoom = getDevicesForRoom(name, savedDevices);
         return {
-          id: name, // Use room name as stable ID (names are unique and don't change on reorder)
+          id: normalizeRoomName(name),
           name,
           deviceCount: devicesInRoom.length,
           devices: devicesInRoom,
@@ -89,7 +90,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [storageService]);
 
   useEffect(() => {
     loadData();
@@ -128,15 +129,16 @@ const RoomManagementScreen = ({ navigation }: any) => {
 
   const handleSort = async (mode: RoomSortMode) => {
     try {
-      setSortMode(mode);
       setShowSortSheet(false);
 
       if (mode === 'custom') {
-        // Enter reorder mode - populate draftRooms with current rooms
+        // Enter reorder mode - store previous sort mode but do NOT set sortMode yet
+        setPreviousSortMode(sortMode);
         setDraftRooms([...rooms]);
         setIsReorderMode(true);
       } else {
         // Apply sort immediately
+        setSortMode(mode);
         const sorted = applySort([...rooms], mode);
         setRooms(sorted);
         setDraftRooms(sorted);
@@ -158,7 +160,10 @@ const RoomManagementScreen = ({ navigation }: any) => {
       console.log('[RoomManagement] Saving custom order:', roomNames);
       
       await storageService.saveRooms(roomNames);
+      
+      // Only set sortMode to 'custom' AFTER save succeeds
       await storageService.saveRoomSortMode('custom');
+      setSortMode('custom');
       
       console.log('[RoomManagement] Custom order saved successfully');
       
@@ -182,6 +187,8 @@ const RoomManagementScreen = ({ navigation }: any) => {
   };
 
   const handleCancelReorder = () => {
+    // Restore previous sort mode visually
+    setSortMode(previousSortMode);
     setDraftRooms([...rooms]);
     setIsReorderMode(false);
   };
@@ -302,7 +309,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
       />
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => {
@@ -349,7 +356,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
             <View style={{ flex: 1 }}>
               <Text style={[styles.bannerTitle, { color: theme.primary }]}>Custom order mode</Text>
               <Text style={[styles.bannerText, { color: theme.textSecondary }]}>
-                Long press and drag to reorder. Tap Save Order when done.
+                Long press a room for 2 seconds, drag it into position, then save.
               </Text>
             </View>
           </View>
@@ -378,11 +385,11 @@ const RoomManagementScreen = ({ navigation }: any) => {
           <DraggableFlatList
             data={draftRooms.length > 0 ? draftRooms : rooms}
             onDragEnd={({ data }) => setDraftRooms(data)}
-            keyExtractor={(item, index) => `${item.id}-${index}`}
+            keyExtractor={(item) => item.id}
             renderItem={({ item, drag, isActive }) => (
               <TouchableOpacity
                 onLongPress={drag}
-                delayLongPress={300}
+                delayLongPress={2000}
                 style={[
                   styles.roomCard,
                   {
@@ -425,7 +432,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
           scrollEventThrottle={16}
           bounces={true}
         >
-          {rooms.map((room, index) => (
+          {rooms.map((room) => (
             <View
               key={room.id}
               style={[styles.roomCard, { backgroundColor: theme.card, borderColor: theme.border }]}

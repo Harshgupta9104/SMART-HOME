@@ -41,16 +41,40 @@ const HomeScreen = ({ navigation }: any) => {
 
   useFocusEffect(
     useCallback(() => {
-      loadProvisionedDevices();
-      loadRooms();
-    }, [])
+      const load = async () => {
+        await loadProvisionedDevices();
+        // After loading devices, load rooms with fresh device data
+        const freshDevices = await storageService.getProvisionedDevices();
+        await loadRoomsWithDevices(freshDevices);
+      };
+      load();
+    }, [storageService])
   );
+
+  const loadRoomsWithDevices = async (deviceList: ProvisionedDevice[]) => {
+    try {
+      const savedRooms = await storageService.getRooms();
+      const sortMode = await storageService.getRoomSortMode();
+      // Use the passed device list instead of state
+      const sortedRooms = sortRooms(savedRooms, sortMode, deviceList);
+      setRooms(['All rooms', ...sortedRooms]);
+      
+      // If selected room was deleted, reset to "All rooms"
+      if (selectedRoom !== 'All rooms' && !['All rooms', ...sortedRooms].includes(selectedRoom)) {
+        setSelectedRoom('All rooms');
+      }
+    } catch (error) {
+      console.error('[HomeScreen] Error loading rooms:', error);
+    }
+  };
 
   const loadRooms = async () => {
     try {
       const savedRooms = await storageService.getRooms();
       const sortMode = await storageService.getRoomSortMode();
-      const sortedRooms = sortRooms(savedRooms, sortMode, devices);
+      // Load fresh devices to ensure sorting accuracy
+      const freshDevices = await storageService.getProvisionedDevices();
+      const sortedRooms = sortRooms(savedRooms, sortMode, freshDevices);
       setRooms(['All rooms', ...sortedRooms]);
       
       // If selected room was deleted, reset to "All rooms"
