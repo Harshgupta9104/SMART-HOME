@@ -20,7 +20,7 @@ import { useProvisioning } from '../hooks/useProvisioning';
 
 const WiFiProvisioningScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { deviceId, deviceName, displayName, roomName } = route.params;
+  const { deviceId, deviceName, displayName, roomName, deviceType, relayCount } = route.params;
 
   const [wifiNetworks, setWifiNetworks] = useState<WiFiNetwork[]>([]);
   const [selectedSSID, setSelectedSSID] = useState<string>('');
@@ -112,6 +112,8 @@ const WiFiProvisioningScreen = ({ navigation, route }: any) => {
         rememberNetwork,
         displayName,
         roomName,
+        deviceType,
+        relayCount,
         (provisionedDeviceId: string, provisionedDeviceName: string) => {
           // Show success animation
           setShowSuccessAnimation(true);

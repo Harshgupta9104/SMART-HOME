@@ -20,11 +20,13 @@ const DeviceConfigScreen = ({ navigation, route }: any) => {
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
 
-  // Device types with better icons
+  // Device types with correct IDs and relay counts
   const deviceTypes = [
-    { id: 'rover', label: 'Rover', icon: 'move', color: '#3B82F6' },
-    { id: 'smart-courier', label: 'Smart Courier', icon: 'package', color: '#8B5CF6' },
-    { id: 'smart-switch', label: 'Smart Switch', icon: 'toggle-left', color: '#EC4899' },
+    { id: 'smart_switch_1_relay', label: '1 Relay Switch', icon: 'toggle-left', color: '#3B82F6', relayCount: 1 },
+    { id: 'smart_switch_4_relay', label: '4 Relay Switch', icon: 'grid', color: '#8B5CF6', relayCount: 4 },
+    { id: 'smart_plug', label: 'Smart Plug', icon: 'power', color: '#EC4899', relayCount: 1 },
+    { id: 'sensor', label: 'Sensor', icon: 'activity', color: '#F59E0B', relayCount: 0 },
+    { id: 'unknown', label: 'Generic Device', icon: 'device', color: '#6B7280', relayCount: 0 },
   ];
 
   // Room types
@@ -55,6 +57,10 @@ const DeviceConfigScreen = ({ navigation, route }: any) => {
     // Get room label
     const roomLabel = roomTypes.find(r => r.id === selectedRoom)?.label || selectedRoom;
 
+    // Get device type info
+    const selectedDeviceType = deviceTypes.find(d => d.id === selectedType);
+    const relayCount = selectedDeviceType?.relayCount || 0;
+
     // Navigate to WiFi Provisioning with device config data
     navigation.navigate('WiFiProvisioning', {
       deviceId,
@@ -62,6 +68,7 @@ const DeviceConfigScreen = ({ navigation, route }: any) => {
       deviceName: customName,
       displayName: customName,
       deviceType: selectedType,
+      relayCount: relayCount,
       roomType: selectedRoom,
       roomName: roomLabel,
     });
