@@ -1,553 +1,237 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  StatusBar,
+  ScrollView,
   Alert,
   TextInput,
-  SafeAreaView,
-  FlatList,
-  Animated,
-  PanResponder,
+  ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
+import { getStorageService, ProvisionedDevice } from '../services/storageService';
 import { useTheme } from '../context/ThemeContext';
-import { getStorageService, RoomSortMode, ProvisionedDevice } from '../services/storageService';
+
+interface RoomInfo {
+  name: string;
+  deviceCount: number;
+  devices: ProvisionedDevice[];
+}
 
 const RoomManagementScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
-  const [rooms, setRooms] = useState<string[]>([]);
-  const [devices, setDevices] = useState<ProvisionedDevice[]>([]);
-  const [sortMode, setSortMode] = useState<RoomSortMode>('custom');
-  const [showAddInput, setShowAddInput] = useState(false);
-  const [newRoomName, setNewRoomName] = useState('');
+  const [rooms, setRooms] = useState<RoomInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [editingRoom, setEditingRoom] = useState<string | null>(null);
-  const [editingRoomName, setEditingRoomName] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [draggingRoom, setDraggingRoom] = useState<string | null>(null);
+  const [newRoomName, setNewRoomName] = useState('');
 
   const storageService = getStorageService();
 
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [])
-  );
-
-  const loadData = async () => {
+  const loadRooms = useCallback(async () => {
     try {
-      setLoading(true);
-      const [savedRooms, sortModeValue, provisionedDevices] = await Promise.all([
-        storageService.getRooms(),
-        storageService.getRoomSortMode(),
-        storageService.getProvisionedDevices(),
-      ]);
-      setRooms(savedRooms);
-      setSortMode(sortModeValue);
-      setDevices(provisionedDevices);
+      setIsLoading(true);
+      const grouped = await storageService.getDevicesGroupedByRoom();
+      const roomList: RoomInfo[] = Object.entries(grouped).map(([name, devices]) => ({
+        name,
+        deviceCount: devices.length,
+        devices,
+      }));
+      setRooms(roomList.sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
-      console.error('[RoomManagement] Error loading data:', error);
-      Alert.alert('Error', 'Failed to load data');
+      console.error('[RoomManagement] Error loading rooms:', error);
+      Alert.alert('Error', 'Failed to load rooms');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  };
+  }, []);
 
-  const getRoomDeviceCount = (roomName: string): number => {
-    return devices.filter(device => (device.roomName || 'Unassigned').toLowerCase() === roomName.toLowerCase()).length;
-  };
+  useEffect(() => {
+    loadRooms();
+  }, [loadRooms]);
 
-  const getSortedPreviewRooms = (): string[] => {
-    const roomsCopy = [...rooms];
-    switch (sortMode) {
-      case 'name_asc':
-        return roomsCopy.sort((a, b) => a.localeCompare(b));
-      case 'name_desc':
-        return roomsCopy.sort((a, b) => b.localeCompare(a));
-      case 'device_count_desc':
-        return roomsCopy.sort((a, b) => {
-          const countDiff = getRoomDeviceCount(b) - getRoomDeviceCount(a);
-          return countDiff !== 0 ? countDiff : a.localeCompare(b);
-        });
-      case 'device_count_asc':
-        return roomsCopy.sort((a, b) => {
-          const countDiff = getRoomDeviceCount(a) - getRoomDeviceCount(b);
-          return countDiff !== 0 ? countDiff : a.localeCompare(b);
-        });
-      case 'custom':
-      default:
-        return roomsCopy;
+  const handleRenameRoom = async (oldName: string) => {
+    if (!newRoomName.trim()) {
+      Alert.alert('Error', 'Room name cannot be empty');
+      return;
     }
-  };
 
-  const getSortLabel = (mode: RoomSortMode): string => {
-    switch (mode) {
-      case 'name_asc': return 'A-Z';
-      case 'name_desc': return 'Z-A';
-      case 'device_count_desc': return 'Most used';
-      case 'device_count_asc': return 'Least used';
-      case 'custom':
-      default:
-        return 'Custom';
+    if (newRoomName === oldName) {
+      setEditingRoom(null);
+      return;
     }
-  };
 
-  const getSortIcon = (mode: RoomSortMode): string => {
-    switch (mode) {
-      case 'name_asc': return 'arrow-up';
-      case 'name_desc': return 'arrow-down';
-      case 'device_count_desc': return 'trending-up';
-      case 'device_count_asc': return 'trending-down';
-      case 'custom':
-      default:
-        return 'sliders';
+    if (rooms.some(r => r.name === newRoomName)) {
+      Alert.alert('Error', 'A room with this name already exists');
+      return;
     }
-  };
 
-  const handleRoomReorder = async (reorderedRooms: string[]) => {
     try {
-      // Save the new order
-      await storageService.saveRooms(reorderedRooms);
-      // Set sort mode to custom
-      await storageService.saveRoomSortMode('custom');
-      // Update state
-      setRooms(reorderedRooms);
-      setSortMode('custom');
-      setDraggingRoom(null);
+      setIsLoading(true);
+      await storageService.renameRoom(oldName, newRoomName.trim());
+      setEditingRoom(null);
+      setNewRoomName('');
+      await loadRooms();
     } catch (error) {
-      console.error('[RoomManagement] Error reordering rooms:', error);
-      Alert.alert('Error', 'Failed to reorder rooms');
+      console.error('[RoomManagement] Error renaming room:', error);
+      Alert.alert('Error', 'Failed to rename room');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const renderSortOption = (mode: RoomSortMode) => (
-    <TouchableOpacity
-      key={mode}
-      style={[
-        styles.sortCard,
-        { backgroundColor: theme.card, borderColor: theme.border },
-        sortMode === mode && { backgroundColor: theme.primarySoft, borderColor: theme.primary },
-      ]}
-      onPress={() => handleSortModeChange(mode)}
-    >
-      <Icon
-        name={getSortIcon(mode)}
-        size={22}
-        color={sortMode === mode ? theme.primary : theme.textSecondary}
-      />
-      <Text
-        style={[
-          styles.sortCardLabel,
-          { color: sortMode === mode ? theme.primary : theme.textPrimary },
-        ]}
-      >
-        {getSortLabel(mode)}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  const renderRoomCard = (room: string) => {
-    const count = getRoomDeviceCount(room);
-    const isDragging = draggingRoom === room;
-
-    return (
-      <Animated.View
-        key={room}
-        style={[
-          styles.roomCard,
-          { backgroundColor: theme.card, borderColor: theme.border },
-          isDragging && {
-            backgroundColor: theme.surface,
-            borderColor: theme.primary,
-            transform: [{ scale: 1.02 }],
-          },
-        ]}
-      >
-        <View style={styles.roomCardLeft}>
-          {/* Drag Handle */}
-          <TouchableOpacity
-            style={styles.dragHandle}
-            onLongPress={() => setDraggingRoom(room)}
-            delayLongPress={200}
-          >
-            <Icon name="menu" size={18} color={isDragging ? theme.primary : theme.textMuted} />
-          </TouchableOpacity>
-
-          <View style={[styles.roomIconBox, { backgroundColor: theme.primarySoft }]}>
-            <Icon name="home" size={20} color={theme.primary} />
-          </View>
-          <View style={styles.roomCardInfo}>
-            <Text style={[styles.roomName, { color: theme.textPrimary }]}>{room}</Text>
-            <Text
-              style={[
-                styles.roomDeviceCount,
-                { color: count > 0 ? theme.primary : theme.textMuted },
-              ]}
-            >
-              {count > 0 ? `${count} device${count !== 1 ? 's' : ''}` : 'No devices'}
-            </Text>
-          </View>
-          {count > 0 && (
-            <View style={[styles.activeBadge, { backgroundColor: theme.primarySoft }]}>
-              <Text style={[styles.activeBadgeText, { color: theme.primary }]}>Active</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.roomCardActions}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.primarySoft }]}
-            onPress={() => {
-              setEditingRoom(room);
-              setEditingRoomName(room);
-            }}
-            disabled={isDragging}
-          >
-            <Icon name="edit-2" size={18} color={theme.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}
-            onPress={() => handleDeleteRoom(room)}
-            disabled={isDragging}
-          >
-            <Icon name="trash-2" size={18} color={theme.danger} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Drag Up/Down Controls when Dragging */}
-        {isDragging && (
-          <View style={styles.dragControls}>
-            <TouchableOpacity
-              style={[styles.dragButton, { backgroundColor: theme.primary }]}
-              onPress={() => {
-                const index = rooms.indexOf(room);
-                if (index > 0) {
-                  const newRooms = [...rooms];
-                  [newRooms[index - 1], newRooms[index]] = [newRooms[index], newRooms[index - 1]];
-                  handleRoomReorder(newRooms);
-                }
-              }}
-            >
-              <Icon name="arrow-up" size={16} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.dragButton, { backgroundColor: theme.primary }]}
-              onPress={() => {
-                const index = rooms.indexOf(room);
-                if (index < rooms.length - 1) {
-                  const newRooms = [...rooms];
-                  [newRooms[index], newRooms[index + 1]] = [newRooms[index + 1], newRooms[index]];
-                  handleRoomReorder(newRooms);
-                }
-              }}
-            >
-              <Icon name="arrow-down" size={16} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.dragButton, { backgroundColor: theme.textMuted }]}
-              onPress={() => setDraggingRoom(null)}
-            >
-              <Icon name="x" size={16} color="white" />
-            </TouchableOpacity>
-          </View>
-        )}
-      </Animated.View>
+  const handleDeleteRoom = (room: RoomInfo) => {
+    // Since rooms are dynamically generated from devices, deletion is not applicable
+    // Empty rooms automatically disappear when devices are removed
+    Alert.alert(
+      'About Empty Rooms',
+      'Rooms are created automatically when devices are assigned to them. Empty rooms disappear automatically when their last device is removed.',
+      [{ text: 'OK', style: 'default' }]
     );
   };
 
-  const handleSortModeChange = async (newMode: RoomSortMode) => {
-    try {
-      setSortMode(newMode);
-      await storageService.saveRoomSortMode(newMode);
-    } catch (error) {
-      console.error('[RoomManagement] Error saving sort mode:', error);
-      Alert.alert('Error', 'Failed to save sort mode');
-    }
-  };
-
-  const getSortModeLabel = (mode: RoomSortMode): string => {
-    switch (mode) {
-      case 'name_asc': return 'Name A-Z';
-      case 'name_desc': return 'Name Z-A';
-      case 'device_count_desc': return 'Most devices first';
-      case 'device_count_asc': return 'Least devices first';
-      case 'custom':
-      default:
-        return 'Custom order';
-    }
-  };
-
-  const handleAddRoom = async () => {
-    try {
-      const trimmedName = newRoomName.trim();
-      if (!trimmedName) {
-        Alert.alert('Error', 'Room name cannot be empty');
-        return;
-      }
-      await storageService.addRoom(trimmedName);
-      setNewRoomName('');
-      setShowAddInput(false);
-      await loadData();
-      Alert.alert('Success', `Room "${trimmedName}" added`);
-    } catch (error) {
-      console.error('[RoomManagement] Error adding room:', error);
-      Alert.alert('Error', (error as Error).message || 'Failed to add room');
-    }
-  };
-
-  const handleRenameRoom = async () => {
-    try {
-      if (!editingRoom) return;
-      const trimmedNewName = editingRoomName.trim();
-      if (!trimmedNewName) {
-        Alert.alert('Error', 'Room name cannot be empty');
-        return;
-      }
-      await storageService.renameRoom(editingRoom, trimmedNewName);
-      setEditingRoom(null);
-      setEditingRoomName('');
-      await loadData();
-      Alert.alert('Success', `Room renamed to "${trimmedNewName}"`);
-    } catch (error) {
-      console.error('[RoomManagement] Error renaming room:', error);
-      Alert.alert('Error', (error as Error).message || 'Failed to rename room');
-    }
-  };
-
-  const handleDeleteRoom = async (roomName: string) => {
-    try {
-      const devicesInRoom = await storageService.getDevicesByRoom(roomName);
-      if (devicesInRoom.length > 0) {
-        Alert.alert(
-          'Move devices before deleting?',
-          `"${roomName}" has ${devicesInRoom.length} device(s). Deleting it will move them to Unassigned.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Move & Delete',
-              onPress: async () => {
-                await storageService.deleteRoom(roomName);
-                await loadData();
-                Alert.alert('Success', `Room deleted. Devices moved to Unassigned`);
-              },
-              style: 'destructive',
-            },
-          ]
-        );
-      } else {
-        Alert.alert(
-          'Delete Room?',
-          `"${roomName}" will be removed from your room list.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Delete',
-              onPress: async () => {
-                await storageService.deleteRoom(roomName);
-                await loadData();
-                Alert.alert('Success', `Room deleted`);
-              },
-              style: 'destructive',
-            },
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('[RoomManagement] Error deleting room:', error);
-      Alert.alert('Error', (error as Error).message || 'Failed to delete room');
-    }
-  };
-
   const styles = createStyles(theme);
-  const sortedPreviewRooms = getSortedPreviewRooms();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.background}
+      />
 
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Icon name="chevron-left" size={28} color={theme.textPrimary} />
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+        >
+          <Icon name="chevron-left" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Manage Rooms</Text>
-          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>Organize your smart home</Text>
-        </View>
-        <View style={{ width: 28 }} />
+        <Text style={styles.headerTitle}>Manage Rooms</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
-      >
-        {/* Info Banner */}
-        <View style={[styles.infoBanner, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
-          <Icon name="home" size={20} color={theme.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.infoBannerTitle, { color: theme.textPrimary }]}>Create rooms to organize</Text>
-            <Text style={[styles.infoBannerText, { color: theme.textSecondary }]}>
-              Group and filter devices by location
-            </Text>
-          </View>
+      {/* Content */}
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
-
-        {/* HomeScreen Preview Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>HOMESCREEN PREVIEW</Text>
-          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-            This is how room chips will appear on your dashboard
-          </Text>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.previewScroll}
-            contentContainerStyle={styles.previewContent}
-          >
-            <View style={[styles.previewChip, { backgroundColor: theme.primary }]}>
-              <Text style={styles.previewChipTextSelected}>All rooms</Text>
-            </View>
-            {sortedPreviewRooms.map(room => {
-              const count = getRoomDeviceCount(room);
-              return (
-                <View key={room} style={[styles.previewChip, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Text style={[styles.previewChipText, { color: theme.textPrimary }]}>
-                    {room}{count > 0 ? ` (${count})` : ''}
-                  </Text>
-                </View>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Room Chip Order Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>ROOM CHIP ORDER</Text>
-          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-            Choose how room chips are ordered
-          </Text>
-
-          <View style={styles.sortGrid}>
-            {(['custom', 'name_asc', 'name_desc', 'device_count_desc', 'device_count_asc'] as RoomSortMode[]).map(
-              mode => renderSortOption(mode)
-            )}
-          </View>
-        </View>
-
-        {/* Custom Rooms Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>CUSTOM ROOMS</Text>
-          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-            Tap edit to rename or delete unused rooms
-          </Text>
-          <Text style={[styles.dragHint, { color: theme.textMuted }]}>
-            Hold and drag rooms to customize dashboard chip order
-          </Text>
-
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={[styles.loadingText, { color: theme.textMuted }]}>Loading rooms...</Text>
-            </View>
-          ) : rooms.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Icon name="inbox" size={40} color={theme.textMuted} />
-              <Text style={[styles.emptyTitle, { color: theme.textMuted }]}>No rooms yet</Text>
-              <Text style={[styles.emptySubtext, { color: theme.textMuted }]}>Add your first room to get started</Text>
+      ) : (
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.contentContainer}
+        >
+          {rooms.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Icon name="inbox" size={48} color={theme.textMuted} />
+              <Text style={styles.emptyTitle}>No Rooms</Text>
+              <Text style={styles.emptySubtitle}>Create a room when you add a device</Text>
             </View>
           ) : (
-            <View>{rooms.map(room => renderRoomCard(room))}</View>
+            <>
+              {rooms.map(room => (
+                <View key={room.name} style={styles.roomCard}>
+                  {editingRoom === room.name ? (
+                    // Edit Mode
+                    <View style={styles.editContainer}>
+                      <TextInput
+                        style={styles.editInput}
+                        value={newRoomName}
+                        onChangeText={setNewRoomName}
+                        placeholder="Room name"
+                        placeholderTextColor={theme.textMuted}
+                        autoFocus
+                        editable={!isLoading}
+                      />
+                      <TouchableOpacity
+                        style={[styles.editButton, { backgroundColor: theme.success }]}
+                        onPress={() => handleRenameRoom(room.name)}
+                        disabled={isLoading}
+                      >
+                        <Icon name="check" size={18} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.editButton, { backgroundColor: theme.danger }]}
+                        onPress={() => {
+                          setEditingRoom(null);
+                          setNewRoomName('');
+                        }}
+                        disabled={isLoading}
+                      >
+                        <Icon name="x" size={18} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    // View Mode
+                    <>
+                      <View style={styles.roomInfo}>
+                        <View style={styles.roomDetails}>
+                          <Text style={styles.roomName}>{room.name}</Text>
+                          <Text style={styles.deviceCount}>
+                            {room.deviceCount} device{room.deviceCount !== 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                        <View style={styles.roomBadge}>
+                          <Text style={styles.roomBadgeText}>{room.deviceCount}</Text>
+                        </View>
+                      </View>
+
+                      {/* Room Actions */}
+                      <View style={styles.actions}>
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={() => {
+                            setEditingRoom(room.name);
+                            setNewRoomName(room.name);
+                          }}
+                          disabled={isLoading}
+                        >
+                          <Icon name="edit-2" size={16} color={theme.primary} />
+                          <Text style={[styles.actionButtonText, { color: theme.primary }]}>Rename</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.infoButton]}
+                          onPress={() => handleDeleteRoom(room)}
+                          disabled={isLoading}
+                        >
+                          <Icon name="info" size={16} color={theme.primary} />
+                          <Text style={[styles.actionButtonText, { color: theme.primary }]}>About Rooms</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Device List */}
+                      {room.devices.length > 0 && (
+                        <View style={styles.deviceList}>
+                          {room.devices.map(device => (
+                            <View key={device.id} style={styles.deviceItem}>
+                              <Icon name="smartphone" size={14} color={theme.textMuted} />
+                              <Text style={styles.deviceItemText} numberOfLines={1}>
+                                {device.displayName || device.name}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </>
+                  )}
+                </View>
+              ))}
+            </>
           )}
-        </View>
-      </ScrollView>
-
-      {/* Sticky Add Room Button */}
-      <View style={[styles.bottomContainer, { paddingBottom: insets.bottom + 12, backgroundColor: theme.background }]}>
-        {!showAddInput ? (
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: theme.primary }]}
-            onPress={() => setShowAddInput(true)}
-          >
-            <Icon name="plus" size={22} color="white" />
-            <Text style={styles.addButtonText}>Add Room</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.inputTitle, { color: theme.textPrimary }]}>Add Room</Text>
-            <Text style={[styles.inputHelper, { color: theme.textSecondary }]}>
-              Room names appear as filters on HomeScreen
-            </Text>
-            <TextInput
-              style={[styles.input, { color: theme.textPrimary, borderColor: theme.border }]}
-              placeholder="Example: Study Room"
-              placeholderTextColor={theme.textMuted}
-              value={newRoomName}
-              onChangeText={setNewRoomName}
-              autoFocus
-            />
-            <View style={styles.inputActions}>
-              <TouchableOpacity
-                style={[styles.inputButton, { backgroundColor: theme.background, borderColor: theme.border }]}
-                onPress={() => {
-                  setShowAddInput(false);
-                  setNewRoomName('');
-                }}
-              >
-                <Text style={[styles.inputButtonText, { color: theme.textSecondary }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.inputButton, { backgroundColor: theme.primary }]} onPress={handleAddRoom}>
-                <Text style={[styles.inputButtonText, { color: 'white' }]}>Save Room</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Edit Room Modal */}
-      {editingRoom && (
-        <View style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
-          <View style={[styles.editModal, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.editModalTitle, { color: theme.textPrimary }]}>Rename Room</Text>
-            <Text style={[styles.editModalHelper, { color: theme.textSecondary }]}>
-              Room names appear as filters on HomeScreen
-            </Text>
-
-            <TextInput
-              style={[styles.editInput, { color: theme.textPrimary, borderColor: theme.border }]}
-              placeholder="New room name"
-              placeholderTextColor={theme.textMuted}
-              value={editingRoomName}
-              onChangeText={setEditingRoomName}
-              autoFocus
-            />
-
-            <View style={styles.editModalActions}>
-              <TouchableOpacity
-                style={[styles.editModalButton, { backgroundColor: theme.background, borderColor: theme.border }]}
-                onPress={() => {
-                  setEditingRoom(null);
-                  setEditingRoomName('');
-                }}
-              >
-                <Text style={[styles.editModalButtonText, { color: theme.textSecondary }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.editModalButton, { backgroundColor: theme.primary }]}
-                onPress={handleRenameRoom}
-              >
-                <Text style={[styles.editModalButtonText, { color: 'white' }]}>Rename</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        </ScrollView>
       )}
+
+      {/* Footer Info */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          Rename or delete rooms. You cannot delete rooms with devices.
+        </Text>
+      </View>
     </View>
   );
 };
@@ -556,331 +240,202 @@ const createStyles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
+      backgroundColor: theme.background,
     },
+
     header: {
       flexDirection: 'row',
-      alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 12,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      gap: 12,
-    },
-    backButton: {
-      width: 44,
-      height: 44,
-      justifyContent: 'center',
       alignItems: 'center',
-      marginLeft: -8,
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
     },
-    headerContent: {
-      flex: 1,
-    },
+
     headerTitle: {
       fontSize: 18,
       fontWeight: '700',
-      marginBottom: 2,
+      color: theme.textPrimary,
     },
-    headerSubtitle: {
-      fontSize: 11,
-      fontWeight: '500',
-    },
-    scrollView: {
+
+    content: {
       flex: 1,
     },
-    infoBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginHorizontal: 16,
-      marginTop: 16,
-      marginBottom: 20,
-      padding: 14,
-      borderRadius: 16,
-      borderWidth: 1,
-    },
-    infoBannerTitle: {
-      fontSize: 13,
-      fontWeight: '700',
-      marginBottom: 2,
-    },
-    infoBannerText: {
-      fontSize: 11,
-      fontWeight: '500',
-    },
-    section: {
+
+    contentContainer: {
       paddingHorizontal: 16,
-      marginBottom: 20,
-    },
-    sectionTitle: {
-      fontSize: 11,
-      fontWeight: '700',
-      letterSpacing: 0.5,
-      marginBottom: 6,
-      paddingHorizontal: 2,
-    },
-    sectionSubtitle: {
-      fontSize: 12,
-      fontWeight: '500',
-      marginBottom: 12,
-      paddingHorizontal: 2,
-    },
-    dragHint: {
-      fontSize: 11,
-      fontWeight: '400',
-      marginBottom: 12,
-      paddingHorizontal: 2,
-      fontStyle: 'italic',
-    },
-    previewScroll: {
-      marginHorizontal: -16,
-      paddingHorizontal: 16,
-    },
-    previewContent: {
-      gap: 8,
-      paddingRight: 16,
-    },
-    previewChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: 'transparent',
-    },
-    previewChipText: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    previewChipTextSelected: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: 'white',
-    },
-    sortGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10,
-      marginBottom: 4,
-    },
-    sortCard: {
-      width: '48%',
-      height: 72,
-      borderRadius: 16,
-      borderWidth: 1,
-      padding: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-    },
-    sortCardLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    roomCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      marginBottom: 10,
-      borderRadius: 16,
-      borderWidth: 1,
-    },
-    roomCardLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      paddingVertical: 16,
       gap: 12,
-      flex: 1,
     },
-    roomIconBox: {
-      width: 40,
-      height: 40,
-      borderRadius: 10,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    roomCardInfo: {
-      flex: 1,
-      gap: 2,
-    },
-    roomName: {
-      fontSize: 14,
-      fontWeight: '700',
-    },
-    roomDeviceCount: {
-      fontSize: 11,
-      fontWeight: '500',
-    },
-    activeBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-    },
-    activeBadgeText: {
-      fontSize: 9,
-      fontWeight: '700',
-      letterSpacing: 0.3,
-    },
-    roomCardActions: {
-      flexDirection: 'row',
-      gap: 8,
-      marginLeft: 10,
-    },
-    dragHandle: {
-      width: 40,
-      height: 44,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginLeft: -8,
-    },
-    dragControls: {
-      position: 'absolute',
-      top: '50%',
-      right: 14,
-      transform: [{ translateY: -50 }],
-      flexDirection: 'row',
-      gap: 6,
-    },
-    dragButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 10,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    actionButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
+
     loadingContainer: {
-      paddingVertical: 24,
-      alignItems: 'center',
-    },
-    loadingText: {
-      fontSize: 13,
-      fontWeight: '500',
-    },
-    emptyContainer: {
-      paddingVertical: 48,
-      alignItems: 'center',
-      gap: 10,
-    },
-    emptyTitle: {
-      fontSize: 15,
-      fontWeight: '700',
-      marginTop: 8,
-    },
-    emptySubtext: {
-      fontSize: 12,
-      fontWeight: '500',
-      textAlign: 'center',
-    },
-    bottomContainer: {
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: 'rgba(0, 0, 0, 0.08)',
-    },
-    addButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flex: 1,
       justifyContent: 'center',
-      gap: 10,
-      paddingVertical: 14,
-      borderRadius: 16,
+      alignItems: 'center',
     },
-    addButtonText: {
-      fontSize: 14,
+
+    emptyState: {
+      alignItems: 'center',
+      paddingVertical: 60,
+      gap: 12,
+    },
+
+    emptyTitle: {
+      fontSize: 16,
       fontWeight: '700',
-      color: 'white',
+      color: theme.textPrimary,
     },
-    inputContainer: {
+
+    emptySubtitle: {
+      fontSize: 14,
+      color: theme.textMuted,
+    },
+
+    roomCard: {
+      backgroundColor: theme.card,
       borderRadius: 16,
       padding: 16,
       borderWidth: 1,
-      gap: 12,
+      borderColor: theme.border,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 2,
     },
-    inputTitle: {
-      fontSize: 16,
-      fontWeight: '700',
-    },
-    inputHelper: {
-      fontSize: 12,
-      fontWeight: '500',
-    },
-    input: {
-      borderWidth: 1,
-      borderRadius: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      fontSize: 14,
-      fontWeight: '500',
-    },
-    inputActions: {
+
+    editContainer: {
       flexDirection: 'row',
       gap: 10,
-      marginTop: 4,
-    },
-    inputButton: {
-      flex: 1,
-      paddingVertical: 12,
-      borderRadius: 12,
       alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
     },
-    inputButtonText: {
-      fontSize: 13,
-      fontWeight: '700',
-    },
-    overlay: {
-      ...StyleSheet.absoluteFillObject,
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000,
-    },
-    editModal: {
-      width: '85%',
-      borderRadius: 18,
-      padding: 20,
-      gap: 14,
-    },
-    editModalTitle: {
-      fontSize: 16,
-      fontWeight: '700',
-    },
-    editModalHelper: {
-      fontSize: 12,
-      fontWeight: '500',
-    },
+
     editInput: {
-      borderWidth: 1,
-      borderRadius: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      fontSize: 14,
-      fontWeight: '500',
-      marginBottom: 4,
-    },
-    editModalActions: {
-      flexDirection: 'row',
-      gap: 10,
-      marginTop: 10,
-    },
-    editModalButton: {
       flex: 1,
-      paddingVertical: 12,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
+      backgroundColor: theme.inputBackground,
+      borderRadius: 10,
       borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.textPrimary,
     },
-    editModalButtonText: {
+
+    editButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+
+    roomInfo: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+
+    roomDetails: {
+      flex: 1,
+      gap: 4,
+    },
+
+    roomName: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: theme.textPrimary,
+    },
+
+    deviceCount: {
+      fontSize: 12,
+      color: theme.textMuted,
+      fontWeight: '500',
+    },
+
+    roomBadge: {
+      backgroundColor: theme.primarySoft,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+
+    roomBadgeText: {
       fontSize: 13,
       fontWeight: '700',
+      color: theme.primary,
+    },
+
+    actions: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 12,
+    },
+
+    actionButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: theme.primarySoft,
+      borderWidth: 1,
+      borderColor: theme.border,
+      gap: 6,
+    },
+
+    infoButton: {
+      backgroundColor: theme.primarySoft,
+      borderColor: theme.border,
+    },
+
+    actionButtonText: {
+      fontSize: 12,
+      fontWeight: '700',
+    },
+
+    deviceList: {
+      backgroundColor: theme.inputBackground,
+      borderRadius: 10,
+      padding: 12,
+      gap: 8,
+    },
+
+    deviceItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 6,
+    },
+
+    deviceItemText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      fontWeight: '500',
+      flex: 1,
+    },
+
+    footer: {
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      backgroundColor: theme.surface,
+    },
+
+    footerText: {
+      fontSize: 12,
+      color: theme.textMuted,
+      fontWeight: '500',
+      textAlign: 'center',
+      lineHeight: 16,
     },
   });
 
