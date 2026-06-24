@@ -603,7 +603,7 @@ class StorageService {
   }
 
   /**
-   * Rename a room (updates all devices in that room)
+   * Rename a room (updates saved rooms list AND all devices in that room)
    */
   async renameRoom(oldName: string, newName: string): Promise<void> {
     try {
@@ -622,28 +622,42 @@ class StorageService {
         return;
       }
 
-      // Get all devices to check for existing room
-      const devices = await this.getProvisionedDevices();
+      // Step 1: Load saved rooms
+      const rooms = await this.getRooms();
       
-      // Check if a room with the new name already exists (case-insensitive)
-      const newRoomExists = devices.some(
-        device => (device.roomName || 'Unassigned').toLowerCase() === newNameTrimmed.toLowerCase()
-      );
+      // Step 2: Find old room case-insensitive
+      const oldRoomIndex = rooms.findIndex(r => r.toLowerCase() === oldNameTrimmed.toLowerCase());
+      if (oldRoomIndex === -1) {
+        throw new Error(`Room "${oldNameTrimmed}" not found`);
+      }
 
+      // Step 3: Check for duplicate new room name (case-insensitive, excluding old room)
+      const newRoomExists = rooms.some(
+        (r, idx) => r.toLowerCase() === newNameTrimmed.toLowerCase() && idx !== oldRoomIndex
+      );
       if (newRoomExists) {
         throw new Error(`A room with the name "${newNameTrimmed}" already exists`);
       }
 
-      // Rename: update all devices where roomName matches oldName
-      const updated = devices.map(device => {
+      // Step 4: Replace old room with new room in saved array
+      const updatedRooms = [...rooms];
+      updatedRooms[oldRoomIndex] = newNameTrimmed;
+
+      // Step 5: Save updated rooms using saveRooms
+      await this.saveRooms(updatedRooms);
+      console.log('[Storage] Saved rooms list updated:', oldNameTrimmed, '→', newNameTrimmed);
+
+      // Step 6: Then update all provisioned devices whose roomName matches oldName
+      const devices = await this.getProvisionedDevices();
+      const updatedDevices = devices.map(device => {
         if ((device.roomName || 'Unassigned').toLowerCase() === oldNameTrimmed.toLowerCase()) {
           return { ...device, roomName: newNameTrimmed };
         }
         return device;
       });
 
-      await AsyncStorage.setItem(PROVISIONED_DEVICES_KEY, JSON.stringify(updated));
-      console.log('[Storage] Room renamed:', oldNameTrimmed, '→', newNameTrimmed);
+      await AsyncStorage.setItem(PROVISIONED_DEVICES_KEY, JSON.stringify(updatedDevices));
+      console.log('[Storage] Devices updated for room:', oldNameTrimmed, '→', newNameTrimmed);
     } catch (error) {
       console.error('[Storage] Error renaming room:', error);
       throw error;

@@ -48,6 +48,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
   const [newRoomName, setNewRoomName] = useState('');
   const [sortMode, setSortMode] = useState<RoomSortMode>('custom');
   const [isReorderMode, setIsReorderMode] = useState(false);
+  const [previousSortMode, setPreviousSortMode] = useState<RoomSortMode>('custom');
   const [showSortSheet, setShowSortSheet] = useState(false);
   const [showAddRoomSheet, setShowAddRoomSheet] = useState(false);
   const [addRoomName, setAddRoomName] = useState('');
@@ -72,7 +73,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
       const roomsWithDevices: RoomItem[] = realRooms.map((name) => {
         const devicesInRoom = getDevicesForRoom(name, savedDevices);
         return {
-          id: name, // Use room name as stable ID (names are unique and don't change on reorder)
+          id: normalizeRoomName(name),
           name,
           deviceCount: devicesInRoom.length,
           devices: devicesInRoom,
@@ -89,7 +90,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [storageService]);
 
   useEffect(() => {
     loadData();
@@ -128,15 +129,16 @@ const RoomManagementScreen = ({ navigation }: any) => {
 
   const handleSort = async (mode: RoomSortMode) => {
     try {
-      setSortMode(mode);
       setShowSortSheet(false);
 
       if (mode === 'custom') {
-        // Enter reorder mode - populate draftRooms with current rooms
+        // Enter reorder mode - store previous sort mode but do NOT set sortMode yet
+        setPreviousSortMode(sortMode);
         setDraftRooms([...rooms]);
         setIsReorderMode(true);
       } else {
         // Apply sort immediately
+        setSortMode(mode);
         const sorted = applySort([...rooms], mode);
         setRooms(sorted);
         setDraftRooms(sorted);
@@ -158,7 +160,10 @@ const RoomManagementScreen = ({ navigation }: any) => {
       console.log('[RoomManagement] Saving custom order:', roomNames);
       
       await storageService.saveRooms(roomNames);
+      
+      // Only set sortMode to 'custom' AFTER save succeeds
       await storageService.saveRoomSortMode('custom');
+      setSortMode('custom');
       
       console.log('[RoomManagement] Custom order saved successfully');
       
@@ -182,6 +187,8 @@ const RoomManagementScreen = ({ navigation }: any) => {
   };
 
   const handleCancelReorder = () => {
+    // Restore previous sort mode visually
+    setSortMode(previousSortMode);
     setDraftRooms([...rooms]);
     setIsReorderMode(false);
   };
@@ -302,9 +309,9 @@ const RoomManagementScreen = ({ navigation }: any) => {
       />
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: theme.background }]}>
         <TouchableOpacity
-          style={styles.headerButton}
+          style={[styles.headerButton, { backgroundColor: theme.inputBackground }]}
           onPress={() => {
             if (isReorderMode) {
               handleCancelReorder();
@@ -322,13 +329,13 @@ const RoomManagementScreen = ({ navigation }: any) => {
           {!isReorderMode && (
             <>
               <TouchableOpacity
-                style={styles.headerButton}
+                style={[styles.headerButton, { backgroundColor: theme.inputBackground }]}
                 onPress={() => setShowSortSheet(true)}
               >
                 <Icon name="sliders" size={20} color={theme.textPrimary} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.headerButton}
+                style={[styles.headerButton, { backgroundColor: theme.inputBackground }]}
                 onPress={() => {
                   setAddRoomName('');
                   setShowAddRoomSheet(true);
@@ -343,13 +350,13 @@ const RoomManagementScreen = ({ navigation }: any) => {
 
       {/* Reorder Mode Banner */}
       {isReorderMode && (
-        <View style={[styles.banner, { backgroundColor: theme.primarySoft }]}>
+        <View style={[styles.banner, { backgroundColor: theme.primarySoft, marginHorizontal: 16, marginVertical: 12, borderRadius: 14 }]}>
           <View style={styles.bannerContent}>
-            <Icon name="info" size={16} color={theme.primary} />
+            <Icon name="move" size={16} color={theme.primary} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.bannerTitle, { color: theme.primary }]}>Custom order mode</Text>
               <Text style={[styles.bannerText, { color: theme.textSecondary }]}>
-                Long press and drag to reorder. Tap Save Order when done.
+                Long press a room for 2 seconds, drag it into position, then save.
               </Text>
             </View>
           </View>
@@ -378,16 +385,16 @@ const RoomManagementScreen = ({ navigation }: any) => {
           <DraggableFlatList
             data={draftRooms.length > 0 ? draftRooms : rooms}
             onDragEnd={({ data }) => setDraftRooms(data)}
-            keyExtractor={(item, index) => `${item.id}-${index}`}
+            keyExtractor={(item) => item.id}
             renderItem={({ item, drag, isActive }) => (
               <TouchableOpacity
                 onLongPress={drag}
-                delayLongPress={300}
+                delayLongPress={2000}
                 style={[
                   styles.roomCard,
                   {
                     marginHorizontal: 16,
-                    marginVertical: 5,
+                    marginVertical: 7,
                     backgroundColor: isActive ? theme.primarySoft : theme.card,
                     borderColor: isActive ? theme.primary : theme.border,
                   },
@@ -425,7 +432,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
           scrollEventThrottle={16}
           bounces={true}
         >
-          {rooms.map((room, index) => (
+          {rooms.map((room) => (
             <View
               key={room.id}
               style={[styles.roomCard, { backgroundColor: theme.card, borderColor: theme.border }]}
@@ -539,23 +546,23 @@ const RoomManagementScreen = ({ navigation }: any) => {
 
       {/* Bottom Actions - Visible only in reorder mode */}
       {isReorderMode && (
-        <View style={[styles.bottomActions, { borderTopColor: theme.border, backgroundColor: theme.surface, paddingBottom: insets.bottom }]}>
+        <View style={[styles.bottomActions, { borderTopColor: theme.border, backgroundColor: theme.surface, paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
-            style={[styles.bottomButton, { backgroundColor: theme.danger }]}
+            style={[styles.bottomButton, styles.bottomButtonCancel, { borderColor: theme.border, borderWidth: 1, backgroundColor: 'transparent' }]}
             onPress={handleCancelReorder}
             disabled={isLoading}
           >
-            <Text style={styles.bottomButtonText}>Cancel</Text>
+            <Text style={[styles.bottomButtonText, { color: theme.textPrimary }]}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.bottomButton, { backgroundColor: theme.success }]}
+            style={[styles.bottomButton, styles.bottomButtonSave, { backgroundColor: theme.success }]}
             onPress={handleSaveOrder}
             disabled={isLoading}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.bottomButtonText}>Save Order</Text>
+              <Text style={[styles.bottomButtonText, { color: '#FFFFFF' }]}>Save Order</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -572,72 +579,115 @@ const RoomManagementScreen = ({ navigation }: any) => {
           <View
             style={[
               styles.sheet,
-              { backgroundColor: theme.surface, paddingBottom: insets.bottom + 16 },
+              { backgroundColor: theme.surface, paddingBottom: insets.bottom + 24 },
             ]}
           >
             <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
-            <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Sort Rooms</Text>
+            <View style={styles.sheetTitleRow}>
+              <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Sort Rooms</Text>
+              <TouchableOpacity onPress={() => setShowSortSheet(false)}>
+                <Icon name="x" size={20} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
-              style={[styles.sortOption, { borderBottomColor: theme.border }]}
+              style={[
+                styles.sortOption,
+                {
+                  backgroundColor: sortMode === 'name_asc' ? theme.primarySoft : theme.inputBackground,
+                  borderColor: sortMode === 'name_asc' ? theme.primary : theme.border,
+                }
+              ]}
               onPress={() => handleSort('name_asc')}
             >
+              <Icon name="arrow-up" size={18} color={theme.primary} />
               <View style={styles.sortOptionContent}>
-                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>A-Z</Text>
-                <Text style={[styles.sortOptionText, { color: theme.textMuted, fontSize: 12 }]}>
-                  Alphabetical
+                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>Name A–Z</Text>
+                <Text style={[styles.sortOptionSubtext, { color: theme.textMuted }]}>
+                  Alphabetical order
                 </Text>
               </View>
-              {sortMode === 'name_asc' && <Icon name="check" size={20} color={theme.primary} />}
+              {sortMode === 'name_asc' && <Icon name="check-circle" size={18} color={theme.primary} />}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.sortOption, { borderBottomColor: theme.border }]}
+              style={[
+                styles.sortOption,
+                {
+                  backgroundColor: sortMode === 'name_desc' ? theme.primarySoft : theme.inputBackground,
+                  borderColor: sortMode === 'name_desc' ? theme.primary : theme.border,
+                }
+              ]}
               onPress={() => handleSort('name_desc')}
             >
+              <Icon name="arrow-down" size={18} color={theme.primary} />
               <View style={styles.sortOptionContent}>
-                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>Z-A</Text>
-                <Text style={[styles.sortOptionText, { color: theme.textMuted, fontSize: 12 }]}>
-                  Reverse alphabetical
+                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>Name Z–A</Text>
+                <Text style={[styles.sortOptionSubtext, { color: theme.textMuted }]}>
+                  Reverse alphabetical order
                 </Text>
               </View>
-              {sortMode === 'name_desc' && <Icon name="check" size={20} color={theme.primary} />}
+              {sortMode === 'name_desc' && <Icon name="check-circle" size={18} color={theme.primary} />}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.sortOption, { borderBottomColor: theme.border }]}
+              style={[
+                styles.sortOption,
+                {
+                  backgroundColor: sortMode === 'device_count_desc' ? theme.primarySoft : theme.inputBackground,
+                  borderColor: sortMode === 'device_count_desc' ? theme.primary : theme.border,
+                }
+              ]}
               onPress={() => handleSort('device_count_desc')}
             >
+              <Icon name="bar-chart-2" size={18} color={theme.primary} />
               <View style={styles.sortOptionContent}>
-                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>Most devices</Text>
-                <Text style={[styles.sortOptionText, { color: theme.textMuted, fontSize: 12 }]}>
-                  By device count
+                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>Most devices first</Text>
+                <Text style={[styles.sortOptionSubtext, { color: theme.textMuted }]}>
+                  Rooms with more devices first
                 </Text>
               </View>
-              {sortMode === 'device_count_desc' && <Icon name="check" size={20} color={theme.primary} />}
+              {sortMode === 'device_count_desc' && <Icon name="check-circle" size={18} color={theme.primary} />}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.sortOption, { borderBottomColor: theme.border }]}
+              style={[
+                styles.sortOption,
+                {
+                  backgroundColor: sortMode === 'device_count_asc' ? theme.primarySoft : theme.inputBackground,
+                  borderColor: sortMode === 'device_count_asc' ? theme.primary : theme.border,
+                }
+              ]}
               onPress={() => handleSort('device_count_asc')}
             >
+              <Icon name="bar-chart" size={18} color={theme.primary} />
               <View style={styles.sortOptionContent}>
-                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>Fewest devices</Text>
-                <Text style={[styles.sortOptionText, { color: theme.textMuted, fontSize: 12 }]}>
-                  By device count
+                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>Fewest devices first</Text>
+                <Text style={[styles.sortOptionSubtext, { color: theme.textMuted }]}>
+                  Rooms with fewer devices first
                 </Text>
               </View>
-              {sortMode === 'device_count_asc' && <Icon name="check" size={20} color={theme.primary} />}
+              {sortMode === 'device_count_asc' && <Icon name="check-circle" size={18} color={theme.primary} />}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.sortOption} onPress={() => handleSort('custom')}>
+            <TouchableOpacity
+              style={[
+                styles.sortOption,
+                {
+                  backgroundColor: sortMode === 'custom' ? theme.primarySoft : theme.inputBackground,
+                  borderColor: sortMode === 'custom' ? theme.primary : theme.border,
+                }
+              ]}
+              onPress={() => handleSort('custom')}
+            >
+              <Icon name="move" size={18} color={theme.primary} />
               <View style={styles.sortOptionContent}>
-                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>Custom</Text>
-                <Text style={[styles.sortOptionText, { color: theme.textMuted, fontSize: 12 }]}>
-                  Drag to reorder
+                <Text style={[styles.sortOptionText, { color: theme.textPrimary }]}>Custom order</Text>
+                <Text style={[styles.sortOptionSubtext, { color: theme.textMuted }]}>
+                  Drag rooms into your own order
                 </Text>
               </View>
-              {sortMode === 'custom' && <Icon name="check" size={20} color={theme.primary} />}
+              {sortMode === 'custom' && <Icon name="check-circle" size={18} color={theme.primary} />}
             </TouchableOpacity>
           </View>
         </View>
@@ -657,11 +707,20 @@ const RoomManagementScreen = ({ navigation }: any) => {
           <View
             style={[
               styles.sheet,
-              { backgroundColor: theme.surface, paddingBottom: insets.bottom + 16 },
+              { backgroundColor: theme.surface, paddingBottom: insets.bottom + 24 },
             ]}
           >
             <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
-            <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Add Room</Text>
+            <View style={styles.sheetTitleRow}>
+              <Text style={[styles.sheetTitle, { color: theme.textPrimary }]}>Add Room</Text>
+              <TouchableOpacity onPress={() => setShowAddRoomSheet(false)}>
+                <Icon name="x" size={20} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.addRoomHelper, { color: theme.textMuted }]}>
+              Create a room to organize your devices.
+            </Text>
 
             <TextInput
               style={[
@@ -743,13 +802,12 @@ const createStyles = (theme: any) =>
     },
 
     banner: {
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 14,
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      gap: 12,
+      borderRadius: 14,
     },
 
     bannerContent: {
@@ -786,11 +844,16 @@ const createStyles = (theme: any) =>
     },
 
     roomCard: {
-      borderRadius: 12,
-      padding: 12,
+      borderRadius: 18,
+      padding: 18,
       borderWidth: 1,
-      gap: 8,
-      minHeight: 90,
+      gap: 12,
+      minHeight: 100,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 3,
     },
 
     dragHandle: {
@@ -847,11 +910,12 @@ const createStyles = (theme: any) =>
     },
 
     badge: {
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      minWidth: 40,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      minWidth: 44,
       alignItems: 'center',
+      justifyContent: 'center',
     },
 
     badgeText: {
@@ -861,7 +925,7 @@ const createStyles = (theme: any) =>
 
     actions: {
       flexDirection: 'row',
-      gap: 8,
+      gap: 10,
     },
 
     actionButton: {
@@ -869,16 +933,17 @@ const createStyles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 12,
       borderWidth: 1,
       gap: 6,
+      minHeight: 40,
     },
 
     actionButtonText: {
-      fontSize: 12,
-      fontWeight: '700',
+      fontSize: 13,
+      fontWeight: '600',
     },
 
     deviceList: {
@@ -903,22 +968,29 @@ const createStyles = (theme: any) =>
     bottomActions: {
       flexDirection: 'row',
       paddingHorizontal: 16,
-      paddingTop: 12,
+      paddingTop: 14,
       gap: 12,
       borderTopWidth: 1,
     },
 
     bottomButton: {
       flex: 1,
-      paddingVertical: 14,
-      borderRadius: 10,
+      paddingVertical: 16,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: 48,
     },
 
+    bottomButtonCancel: {
+      backgroundColor: 'transparent',
+    },
+
+    bottomButtonSave: {
+      backgroundColor: '#FFFFFF',
+    },
+
     bottomButtonText: {
-      color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '700',
     },
@@ -939,42 +1011,53 @@ const createStyles = (theme: any) =>
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.4)',
+      backgroundColor: 'rgba(0,0,0,0.25)',
     },
 
     sheet: {
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      paddingHorizontal: 16,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: 24,
       paddingTop: 12,
       maxHeight: '90%',
     },
 
     sheetHandle: {
-      width: 32,
-      height: 4,
-      borderRadius: 2,
+      width: 44,
+      height: 5,
+      borderRadius: 2.5,
       alignSelf: 'center',
-      marginBottom: 12,
+      marginBottom: 16,
     },
 
     sheetTitle: {
       fontSize: 18,
       fontWeight: '700',
-      marginBottom: 16,
+    },
+
+    sheetTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 20,
     },
 
     sortOption: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: 12,
-      borderBottomWidth: 1,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      gap: 12,
+      marginBottom: 10,
+      borderWidth: 1,
     },
 
     sortOptionContent: {
       flex: 1,
-      gap: 2,
+      gap: 3,
+      marginLeft: 12,
     },
 
     sortOptionText: {
@@ -982,22 +1065,33 @@ const createStyles = (theme: any) =>
       fontWeight: '600',
     },
 
+    sortOptionSubtext: {
+      fontSize: 12,
+      fontWeight: '400',
+    },
+
     addRoomInput: {
-      borderRadius: 10,
+      borderRadius: 14,
       borderWidth: 1,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
       fontSize: 14,
       fontWeight: '600',
-      marginBottom: 16,
+      marginBottom: 20,
+    },
+
+    addRoomHelper: {
+      fontSize: 13,
+      fontWeight: '500',
+      marginBottom: 14,
     },
 
     addButton: {
-      paddingVertical: 12,
-      borderRadius: 10,
+      paddingVertical: 14,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
-      minHeight: 44,
+      minHeight: 48,
     },
 
     addButtonText: {
