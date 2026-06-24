@@ -30,6 +30,8 @@ interface UseProvisioningReturn {
     rememberNetwork: boolean,
     displayName?: string,
     roomName?: string,
+    deviceType?: string,
+    relayCount?: number,
     onProvisioningComplete?: (deviceId: string, deviceName: string) => void
   ) => Promise<void>;
   retryProvisioning: () => void;
@@ -107,6 +109,8 @@ export const useProvisioning = (): UseProvisioningReturn => {
       deviceName: string,
       displayName: string,
       roomName: string,
+      deviceType: string | undefined,
+      relayCount: number | undefined,
       mqttDeviceId: string | null,
       onProvisioningComplete?: (deviceId: string, deviceName: string) => void
     ) => {
@@ -133,24 +137,46 @@ export const useProvisioning = (): UseProvisioningReturn => {
           }
         }
 
+        // Generate relay names based on relay count
+        let relayNames: { relay1?: string; relay2?: string; relay3?: string; relay4?: string } | undefined;
+        if (relayCount === 1) {
+          relayNames = { relay1: 'Relay 1' };
+        } else if (relayCount === 4) {
+          relayNames = {
+            relay1: 'Relay 1',
+            relay2: 'Relay 2',
+            relay3: 'Relay 3',
+            relay4: 'Relay 4',
+          };
+        }
+
         // Store provisioned device immediately
         try {
           const device = {
             id: deviceId,
             name: deviceName,
             displayName: displayName || deviceName, // User-friendly name from DeviceConfig
-            roomName: roomName || 'Other', // Room from DeviceConfig
+            roomName: roomName || 'Unassigned', // Room from DeviceConfig
             macAddress: deviceId,
             mqttDeviceId: mqttDeviceId || deviceId, // ✅ SAVE MQTT DEVICE ID
             ssid: ssid,
             status: 'online' as const,
+            deviceType: deviceType || 'unknown', // ✅ SAVE DEVICE TYPE
+            relayCount: relayCount ?? 0, // ✅ SAVE RELAY COUNT
+            relayNames: relayNames, // ✅ SAVE RELAY NAMES
             lastSeen: new Date().toISOString(),
             provisionedAt: new Date().toISOString(),
             justProvisioned: true,
           };
 
           await storageService.addProvisionedDevice(device);
-          console.log('[Provisioning] Device stored locally with MQTT ID:', mqttDeviceId);
+          console.log('[Provisioning] Saved device model:', {
+            id: device.id,
+            mqttDeviceId: device.mqttDeviceId,
+            deviceType: device.deviceType,
+            relayCount: device.relayCount,
+            relayNames: device.relayNames,
+          });
           addLog('Device saved', 'success');
         } catch (err) {
           console.error('[Provisioning] Error storing device:', err);
@@ -203,6 +229,8 @@ export const useProvisioning = (): UseProvisioningReturn => {
       rememberNetwork: boolean,
       displayName?: string,
       roomName?: string,
+      deviceType?: string,
+      relayCount?: number,
       onProvisioningComplete?: (deviceId: string, deviceName: string) => void
     ) => {
       try {
@@ -256,7 +284,9 @@ export const useProvisioning = (): UseProvisioningReturn => {
                 deviceId,
                 deviceName,
                 displayName || deviceName,
-                roomName || 'Other',
+                roomName || 'Unassigned',
+                deviceType,
+                relayCount,
                 finalMqttId,
                 onProvisioningComplete
               );
