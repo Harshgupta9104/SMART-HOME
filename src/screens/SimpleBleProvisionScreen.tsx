@@ -474,11 +474,9 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
 
   const bleService = getBleService();
   const permissionService = getPermissionService();
-
-  // Start scanning on mount
-  useEffect(() => {
-    startScanning();
-  }, [startScanning]);
+  
+  // Ref for device timeout interval - must be declared BEFORE startScanning uses it
+  const deviceTimeoutIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Smooth transition animation when state changes
   useEffect(() => {
@@ -603,8 +601,6 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
     }
   }, [permissionService, bleService]);
 
-  const deviceTimeoutIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
   const stopScanning = useCallback(async () => {
     try {
       await bleService.stopScan();
@@ -619,6 +615,11 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
       console.error('[SimpleBLE] Error stopping scan:', err);
     }
   }, [bleService]);
+
+  // Start scanning on mount
+  useEffect(() => {
+    startScanning();
+  }, [startScanning]);
 
   // Auto-stop scanning after 60 seconds
   useEffect(() => {

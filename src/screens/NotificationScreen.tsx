@@ -53,12 +53,6 @@ const NotificationScreen = ({ navigation }: any) => {
     initNotifications();
   }, [notificationService]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadNotifications();
-    }, [loadNotifications])
-  );
-
   const loadNotifications = useCallback(() => {
     const notifSettings = notificationService.getSettings();
     setSettings(notifSettings);
@@ -74,6 +68,12 @@ const NotificationScreen = ({ navigation }: any) => {
       unsubscribeFn();
     };
   }, [notificationService]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadNotifications();
+    }, [loadNotifications])
+  );
 
   useEffect(() => {
     return () => {
