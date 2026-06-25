@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 
 interface WaitingDeviceOnlineProps {
-  duration?: number;
+  _duration?: number;
 }
 
 type Stage = 'credentials' | 'wifi' | 'time' | 'cloud' | 'online';

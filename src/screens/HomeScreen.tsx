@@ -39,34 +39,43 @@ const HomeScreen = ({ navigation }: any) => {
   const unsubscribersRef = useRef<Map<string, () => void>>(new Map());
   const [rooms, setRooms] = useState<string[]>(['All rooms']);
 
-  useFocusEffect(
-    useCallback(() => {
-      const load = async () => {
-        await loadProvisionedDevices();
-        // After loading devices, load rooms with fresh device data
-        const freshDevices = await storageService.getProvisionedDevices();
-        await loadRoomsWithDevices(freshDevices);
-      };
-      load();
-    }, [loadProvisionedDevices, loadRoomsWithDevices, storageService])
-  );
+  // Helper: Normalize room names for safe comparison
+  const normalizeRoomName = (roomName?: string): string => {
+    return (roomName || 'Unassigned').trim().toLowerCase();
+  };
 
-  const loadRoomsWithDevices = useCallback(async (deviceList: ProvisionedDevice[]) => {
-    try {
-      const savedRooms = await storageService.getRooms();
-      const sortMode = await storageService.getRoomSortMode();
-      // Use the passed device list instead of state
-      const sortedRooms = sortRooms(savedRooms, sortMode, deviceList);
-      setRooms(['All rooms', ...sortedRooms]);
-      
-      // If selected room was deleted, reset to "All rooms"
-      if (selectedRoom !== 'All rooms' && !['All rooms', ...sortedRooms].includes(selectedRoom)) {
-        setSelectedRoom('All rooms');
-      }
-    } catch (error) {
-      console.error('[HomeScreen] Error loading rooms:', error);
+  // Helper: Get device count by room name (for sorting)
+  const getRoomDeviceCountByName = useCallback((room: string, deviceList: ProvisionedDevice[]): number => {
+    return deviceList.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
+  }, []);
+
+  // Helper: Sort rooms based on sort mode
+  const sortRooms = useCallback((roomList: string[], sortMode: RoomSortMode, deviceList: ProvisionedDevice[]): string[] => {
+    const roomsCopy = [...roomList];
+    switch (sortMode) {
+      case 'name_asc':
+        return roomsCopy.sort((a, b) => a.localeCompare(b));
+      case 'name_desc':
+        return roomsCopy.sort((a, b) => b.localeCompare(a));
+      case 'device_count_desc':
+        return roomsCopy.sort((a, b) => {
+          const countDiff =
+            getRoomDeviceCountByName(b, deviceList) - getRoomDeviceCountByName(a, deviceList);
+          if (countDiff !== 0) return countDiff;
+          return a.localeCompare(b);
+        });
+      case 'device_count_asc':
+        return roomsCopy.sort((a, b) => {
+          const countDiff =
+            getRoomDeviceCountByName(a, deviceList) - getRoomDeviceCountByName(b, deviceList);
+          if (countDiff !== 0) return countDiff;
+          return a.localeCompare(b);
+        });
+      case 'custom':
+      default:
+        return roomsCopy;
     }
-  }, [selectedRoom, storageService, sortRooms]);
+  }, [getRoomDeviceCountByName]);
 
   const loadProvisionedDevices = useCallback(async () => {
     try {
@@ -88,6 +97,35 @@ const HomeScreen = ({ navigation }: any) => {
       console.error('[HomeScreen] Error loading provisioned devices:', error);
     }
   }, [storageService, deviceDataService]);
+
+  const loadRoomsWithDevices = useCallback(async (deviceList: ProvisionedDevice[]) => {
+    try {
+      const savedRooms = await storageService.getRooms();
+      const sortMode = await storageService.getRoomSortMode();
+      // Use the passed device list instead of state
+      const sortedRooms = sortRooms(savedRooms, sortMode, deviceList);
+      setRooms(['All rooms', ...sortedRooms]);
+      
+      // If selected room was deleted, reset to "All rooms"
+      if (selectedRoom !== 'All rooms' && !['All rooms', ...sortedRooms].includes(selectedRoom)) {
+        setSelectedRoom('All rooms');
+      }
+    } catch (error) {
+      console.error('[HomeScreen] Error loading rooms:', error);
+    }
+  }, [selectedRoom, storageService, sortRooms]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const load = async () => {
+        await loadProvisionedDevices();
+        // After loading devices, load rooms with fresh device data
+        const freshDevices = await storageService.getProvisionedDevices();
+        await loadRoomsWithDevices(freshDevices);
+      };
+      load();
+    }, [loadProvisionedDevices, loadRoomsWithDevices, storageService])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -204,49 +242,11 @@ const HomeScreen = ({ navigation }: any) => {
     return device.roomName || 'Unassigned';
   };
 
-  // Helper: Normalize room names for safe comparison
-  const normalizeRoomName = (roomName?: string): string => {
-    return (roomName || 'Unassigned').trim().toLowerCase();
-  };
-
   // Helper: Get device count for a specific room
   const getRoomDeviceCount = (room: string): number => {
     if (room === 'All rooms') return devices.length;
     return devices.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
   };
-
-  // Helper: Get device count by room name (for sorting)
-  const getRoomDeviceCountByName = useCallback((room: string, deviceList: ProvisionedDevice[]): number => {
-    return deviceList.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
-  }, []);
-
-  // Helper: Sort rooms based on sort mode
-  const sortRooms = useCallback((roomList: string[], sortMode: RoomSortMode, deviceList: ProvisionedDevice[]): string[] => {
-    const roomsCopy = [...roomList];
-    switch (sortMode) {
-      case 'name_asc':
-        return roomsCopy.sort((a, b) => a.localeCompare(b));
-      case 'name_desc':
-        return roomsCopy.sort((a, b) => b.localeCompare(a));
-      case 'device_count_desc':
-        return roomsCopy.sort((a, b) => {
-          const countDiff =
-            getRoomDeviceCountByName(b, deviceList) - getRoomDeviceCountByName(a, deviceList);
-          if (countDiff !== 0) return countDiff;
-          return a.localeCompare(b);
-        });
-      case 'device_count_asc':
-        return roomsCopy.sort((a, b) => {
-          const countDiff =
-            getRoomDeviceCountByName(a, deviceList) - getRoomDeviceCountByName(b, deviceList);
-          if (countDiff !== 0) return countDiff;
-          return a.localeCompare(b);
-        });
-      case 'custom':
-      default:
-        return roomsCopy;
-    }
-  }, [getRoomDeviceCountByName]);
 
   // Filter devices by selected room
   const filteredDevices = selectedRoom === 'All rooms'

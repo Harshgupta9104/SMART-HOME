@@ -15,7 +15,7 @@ interface WiFiSelectorProps {
   selectedSSID: string;
   onSelectSSID: (ssid: string) => void;
   networks: WiFiNetwork[];
-  currentSSID: string | null;
+  _currentSSID: string | null;
   isScanning: boolean;
 }
 
