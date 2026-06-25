@@ -48,10 +48,10 @@ const HomeScreen = ({ navigation }: any) => {
         await loadRoomsWithDevices(freshDevices);
       };
       load();
-    }, [storageService])
+    }, [loadProvisionedDevices, loadRoomsWithDevices, storageService])
   );
 
-  const loadRoomsWithDevices = async (deviceList: ProvisionedDevice[]) => {
+  const loadRoomsWithDevices = useCallback(async (deviceList: ProvisionedDevice[]) => {
     try {
       const savedRooms = await storageService.getRooms();
       const sortMode = await storageService.getRoomSortMode();
@@ -66,27 +66,9 @@ const HomeScreen = ({ navigation }: any) => {
     } catch (error) {
       console.error('[HomeScreen] Error loading rooms:', error);
     }
-  };
+  }, [selectedRoom, storageService, sortRooms]);
 
-  const loadRooms = async () => {
-    try {
-      const savedRooms = await storageService.getRooms();
-      const sortMode = await storageService.getRoomSortMode();
-      // Load fresh devices to ensure sorting accuracy
-      const freshDevices = await storageService.getProvisionedDevices();
-      const sortedRooms = sortRooms(savedRooms, sortMode, freshDevices);
-      setRooms(['All rooms', ...sortedRooms]);
-      
-      // If selected room was deleted, reset to "All rooms"
-      if (selectedRoom !== 'All rooms' && !['All rooms', ...sortedRooms].includes(selectedRoom)) {
-        setSelectedRoom('All rooms');
-      }
-    } catch (error) {
-      console.error('[HomeScreen] Error loading rooms:', error);
-    }
-  };
-
-  const loadProvisionedDevices = async () => {
+  const loadProvisionedDevices = useCallback(async () => {
     try {
       const provisionedDevices = await storageService.getProvisionedDevices();
       setDevices(provisionedDevices);
@@ -105,14 +87,14 @@ const HomeScreen = ({ navigation }: any) => {
     } catch (error) {
       console.error('[HomeScreen] Error loading provisioned devices:', error);
     }
-  };
+  }, [storageService, deviceDataService]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadProvisionedDevices();
-    loadRooms();
+    loadRoomsWithDevices(devices);
     setTimeout(() => setRefreshing(false), 1000);
-  }, []);
+  }, [devices, loadProvisionedDevices, loadRoomsWithDevices]);
 
   const handleAddDevice = () => {
     navigation.navigate('AddDevice');
@@ -234,12 +216,12 @@ const HomeScreen = ({ navigation }: any) => {
   };
 
   // Helper: Get device count by room name (for sorting)
-  const getRoomDeviceCountByName = (room: string, deviceList: ProvisionedDevice[]): number => {
+  const getRoomDeviceCountByName = useCallback((room: string, deviceList: ProvisionedDevice[]): number => {
     return deviceList.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
-  };
+  }, []);
 
   // Helper: Sort rooms based on sort mode
-  const sortRooms = (roomList: string[], sortMode: RoomSortMode, deviceList: ProvisionedDevice[]): string[] => {
+  const sortRooms = useCallback((roomList: string[], sortMode: RoomSortMode, deviceList: ProvisionedDevice[]): string[] => {
     const roomsCopy = [...roomList];
     switch (sortMode) {
       case 'name_asc':
@@ -264,7 +246,7 @@ const HomeScreen = ({ navigation }: any) => {
       default:
         return roomsCopy;
     }
-  };
+  }, [getRoomDeviceCountByName]);
 
   // Filter devices by selected room
   const filteredDevices = selectedRoom === 'All rooms'
@@ -284,9 +266,10 @@ const HomeScreen = ({ navigation }: any) => {
   };
 
   useEffect(() => {
+    const currentUnsubscribers = unsubscribersRef.current;
     return () => {
-      unsubscribersRef.current.forEach(unsubscribe => unsubscribe());
-      unsubscribersRef.current.clear();
+      currentUnsubscribers.forEach(unsubscribe => unsubscribe());
+      currentUnsubscribers.clear();
     };
   }, []);
 

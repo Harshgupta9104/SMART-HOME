@@ -51,15 +51,15 @@ const NotificationScreen = ({ navigation }: any) => {
       }
     };
     initNotifications();
-  }, []);
+  }, [notificationService]);
 
   useFocusEffect(
     useCallback(() => {
       loadNotifications();
-    }, [])
+    }, [loadNotifications])
   );
 
-  const loadNotifications = () => {
+  const loadNotifications = useCallback(() => {
     const notifSettings = notificationService.getSettings();
     setSettings(notifSettings);
 
@@ -73,7 +73,7 @@ const NotificationScreen = ({ navigation }: any) => {
     return () => {
       unsubscribeFn();
     };
-  };
+  }, [notificationService]);
 
   useEffect(() => {
     return () => {

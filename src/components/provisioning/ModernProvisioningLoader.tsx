@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,8 @@ const ModernProvisioningLoader: React.FC<ModernProvisioningLoaderProps> = ({
   deviceName,
   stage = 'connecting',
 }) => {
-  const spinAnim = new Animated.Value(0);
-  const pulseAnim = new Animated.Value(1);
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     // Spin animation

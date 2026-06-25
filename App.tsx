@@ -24,7 +24,7 @@ function App() {
       try {
         const permissionService = getPermissionService();
         await permissionService.requestProvisioningPermissions();
-      } catch (_error) {
+      } catch {
         // Permissions request failed - app will still work but with limited functionality
       }
     };

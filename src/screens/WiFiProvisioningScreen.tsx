@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -42,11 +42,7 @@ const WiFiProvisioningScreen = ({ navigation, route }: any) => {
   const { startProvisioning } = useProvisioning();
 
   // Load WiFi networks on mount
-  useEffect(() => {
-    loadWiFiNetworks();
-  }, []);
-
-  const loadWiFiNetworks = async () => {
+  const loadWiFiNetworks = useCallback(async () => {
     try {
       setIsLoading(true);
       console.log('[WiFi] Starting network scan...');
@@ -89,7 +85,11 @@ const WiFiProvisioningScreen = ({ navigation, route }: any) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [wifiService, permissionService]);
+
+  useEffect(() => {
+    loadWiFiNetworks();
+  }, [loadWiFiNetworks]);
 
   const handleConnect = async () => {
     if (!selectedSSID) {
@@ -162,7 +162,7 @@ const WiFiProvisioningScreen = ({ navigation, route }: any) => {
     }
   };
 
-  const getNetworkIcon = (level: number) => {
+  const getNetworkIcon = (_level: number) => {
     return 'wifi';
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -37,7 +37,7 @@ const RoomManagementModal: React.FC<RoomManagementModalProps> = ({
 
   const storageService = getStorageService();
 
-  const loadRooms = async () => {
+  const loadRooms = useCallback(async () => {
     try {
       setIsLoading(true);
       const grouped = await storageService.getDevicesGroupedByRoom();
@@ -53,7 +53,7 @@ const RoomManagementModal: React.FC<RoomManagementModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [storageService]);
 
   useEffect(() => {
     if (visible) {

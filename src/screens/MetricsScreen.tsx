@@ -38,8 +38,7 @@ const getSignalLabel = (rssi: number | undefined) => {
 // ─── Circular ring component ──────────────────────────────────────────────────
 const RING_SIZE = 130;
 const STROKE = 10;
-const RADIUS = (RING_SIZE - STROKE) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+// const CIRCUMFERENCE = 2 * Math.PI * RADIUS; // unused
 
 interface RingProps {
   pct: number;       // 0–100
@@ -183,7 +182,7 @@ const MetricsScreen: React.FC<MetricsScreenProps> = ({ device }) => {
       setMetrics(newMetrics);
     });
     return () => unsubscribe();
-  }, [device]);
+  }, [device, deviceDataService, fadeAnim]);
 
   const plantState = getPlantState(metrics?.soilMoisture);
   const signal = getSignalLabel(metrics?.wifiRSSI);
@@ -203,7 +202,7 @@ const MetricsScreen: React.FC<MetricsScreenProps> = ({ device }) => {
       glowLoop.current?.stop();
       glowAnim.setValue(0.6);
     }
-  }, [plantState.label]);
+  }, [plantState.label, glowAnim]);
 
   return (
     <ScrollView

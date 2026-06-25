@@ -121,7 +121,7 @@ const AnimatedHeroIcon = () => {
         }),
       ])
     ).start();
-  }, []);
+  }, [floatAnim, pulseAnim]);
 
   return (
     <Animated.View
@@ -178,7 +178,7 @@ const AddDeviceScreen = ({ navigation }: any) => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [fadeAnim, heroScaleAnim, slideAnim]);
 
   const handleNearbySetup = () => {
     setSelectedSetupId('nearby');
@@ -187,16 +187,6 @@ const AddDeviceScreen = ({ navigation }: any) => {
 
   const handleBack = () => {
     navigation.goBack();
-  };
-
-  const handleQRSetup = () => {
-    setSelectedSetupId('qr');
-    console.log('QR Code setup - Coming soon');
-  };
-
-  const handleManualSetup = () => {
-    setSelectedSetupId('manual');
-    console.log('Manual setup - Coming soon');
   };
 
   const setupMethods: SetupMethod[] = [

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
   FlatList,
   ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { ProvisionedDevice, getStorageService } from '../services/storageService';
 import { useTheme } from '../context/ThemeContext';
@@ -22,7 +21,6 @@ interface DeviceSettingsScreenProps {
 }
 
 const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onDeviceRemoved }) => {
-  const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
   const [currentDevice, setCurrentDevice] = useState<ProvisionedDevice>(device);
   const [rooms, setRooms] = useState<string[]>([]);
@@ -32,7 +30,7 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
 
   const storageService = getStorageService();
 
-  const loadRooms = async () => {
+  const loadRooms = useCallback(async () => {
     try {
       setLoadingRooms(true);
       const savedRooms = await storageService.getRooms();
@@ -44,7 +42,7 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
     } finally {
       setLoadingRooms(false);
     }
-  };
+  }, [storageService]);
 
   useEffect(() => {
     loadRooms();

@@ -12,7 +12,7 @@ interface WaitingDeviceOnlineProps {
 
 type Stage = 'credentials' | 'wifi' | 'time' | 'cloud' | 'online';
 
-const WaitingDeviceOnline: React.FC<WaitingDeviceOnlineProps> = ({ duration = 15000 }) => {
+const WaitingDeviceOnline: React.FC<WaitingDeviceOnlineProps> = ({ _duration = 15000 }) => {
   const [stage, setStage] = useState<Stage>('credentials');
 
   useEffect(() => {
@@ -47,23 +47,6 @@ const WaitingDeviceOnline: React.FC<WaitingDeviceOnlineProps> = ({ duration = 15
         return 'Device online';
       default:
         return 'Provisioning...';
-    }
-  };
-
-  const _getStageIcon = (currentStage: Stage): string => {
-    switch (currentStage) {
-      case 'credentials':
-        return '✓';
-      case 'wifi':
-        return '📡';
-      case 'time':
-        return '🕐';
-      case 'cloud':
-        return '☁️';
-      case 'online':
-        return '✓';
-      default:
-        return '⏳';
     }
   };
 

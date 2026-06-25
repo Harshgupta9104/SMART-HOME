@@ -8,7 +8,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { ProvisionedDevice } from '../services/storageService';
-import { getMQTTService } from '../services/mqttService';
 import { useTheme } from '../context/ThemeContext';
 import MetricsScreen from './MetricsScreen';
 import ControllerScreen from './ControllerScreen';
@@ -35,8 +34,7 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const device: ProvisionedDevice = route?.params?.device;
-  const _mqttService = getMQTTService();
-  const _mqttConnected = _mqttService.isConnectedToMQTT();
+  // MQTT service available but not needed for current implementation
 
   const handleDeviceRemoved = () => {
     navigation.goBack();
