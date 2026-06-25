@@ -72,6 +72,9 @@ yarn-error.log
 .env.development
 .env.production
 
+# Firebase configuration (contains API keys - do not commit)
+android/app/google-services.json
+
 # Yarn
 .yarn/*
 !.yarn/patches
