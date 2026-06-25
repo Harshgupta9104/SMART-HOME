@@ -16,6 +16,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import RoomManagementScreen from '../screens/RoomManagementScreen';
+import { LoginScreen, SignupScreen, ForgotPasswordScreen } from '../screens/auth';
 import { useTheme } from '../context/ThemeContext';
 import { getNavigationTheme } from '../theme/theme';
 
@@ -54,6 +55,27 @@ const RootNavigator = () => {
         }}
       >
         <Stack.Screen name="HomeMain" component={HomeScreen} />
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="Signup"
+          component={SignupScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
         <Stack.Screen
           name="AddDevice"
           component={AddDeviceScreen}
