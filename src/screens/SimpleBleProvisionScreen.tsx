@@ -7,7 +7,6 @@ import {
   StatusBar,
   Animated,
   Alert,
-  ScrollView,
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -467,7 +466,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
+  const [_lastUpdateTime, _setLastUpdateTime] = useState<number>(Date.now());
   
   // Smooth transition animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -549,7 +548,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
           // If you want only PROV_ devices, uncomment the filter below:
           // if (!deviceName.startsWith('PROV_')) return;
           
-          setLastUpdateTime(Date.now());
+          _setLastUpdateTime(Date.now());
           
           setDevices(prevDevices => {
             const existingIndex = prevDevices.findIndex(d => d.id === device.id);

@@ -56,13 +56,6 @@ export const useProvisioning = (): UseProvisioningReturn => {
   const storageService = getStorageService();
   const keychainService = getKeychainService();
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => {
-      subscription.remove();
-    };
-  }, [provisioningState]);
-
   const handleAppStateChange = (state: AppStateStatus) => {
     appStateRef.current = state;
     if (state === 'background' && provisioningState !== ProvisioningState.IDLE) {
@@ -70,6 +63,13 @@ export const useProvisioning = (): UseProvisioningReturn => {
       cleanup();
     }
   };
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, [provisioningState, handleAppStateChange]);
 
   const addLog = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
     const logEntry: LogEntry = {

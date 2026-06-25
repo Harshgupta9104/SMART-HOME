@@ -35,8 +35,8 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const device: ProvisionedDevice = route?.params?.device;
-  const mqttService = getMQTTService();
-  const mqttConnected = mqttService.isConnectedToMQTT();
+  const _mqttService = getMQTTService();
+  const _mqttConnected = _mqttService.isConnectedToMQTT();
 
   const handleDeviceRemoved = () => {
     navigation.goBack();
@@ -78,8 +78,7 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
         </View>
 
         {/* Notification Bell Icon */}
-        <TouchableOpacity style={[styles.notificationBtn, { backgroundColor: theme.primarySoft }]}>
-        </TouchableOpacity>
+        <TouchableOpacity style={[styles.notificationBtn, { backgroundColor: theme.primarySoft }]} />
       </View>
 
       {/* Tabs */}

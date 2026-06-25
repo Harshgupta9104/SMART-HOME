@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -32,10 +32,6 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
 
   const storageService = getStorageService();
 
-  useEffect(() => {
-    loadRooms();
-  }, []);
-
   const loadRooms = async () => {
     try {
       setLoadingRooms(true);
@@ -49,6 +45,10 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
       setLoadingRooms(false);
     }
   };
+
+  useEffect(() => {
+    loadRooms();
+  }, [loadRooms]);
 
   const handleChangeRoom = async (selectedRoom: string) => {
     try {
@@ -284,7 +284,7 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
   );
 };
 
-const createStyles = (theme: any) =>
+const createStyles = (_theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,

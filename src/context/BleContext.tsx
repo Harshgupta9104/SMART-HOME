@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { Device } from 'react-native-ble-plx';
 import { AppState, AppStateStatus } from 'react-native';
 import { getBleService } from '../services/bleService';
@@ -40,19 +40,19 @@ export const BleProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const bleService = getBleService();
-  const permissionService = getPermissionService();
+  const bleService = useMemo(() => getBleService(), []);
+  const permissionService = useMemo(() => getPermissionService(), []);
 
   const checkBluetoothState = useCallback(async () => {
     try {
       const enabled = await bleService.checkBluetoothState();
       setBluetoothEnabled(enabled);
       console.log('[BLE Context] Bluetooth state checked:', enabled);
-    } catch (err) {
-      console.error('[BLE Context] Error checking Bluetooth state:', err);
+    } catch (_err) {
+      console.error('[BLE Context] Error checking Bluetooth state:', _err);
       setError('Failed to check Bluetooth state');
     }
-  }, []);
+  }, [bleService]);
 
   const checkPermissions = useCallback(async (): Promise<PermissionStatus> => {
     try {
@@ -60,8 +60,8 @@ export const BleProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPermissionStatus(status);
       console.log('[BLE Context] Permissions checked:', status);
       return status;
-    } catch (err) {
-      console.error('[BLE Context] Error checking permissions:', err);
+    } catch (_err) {
+      console.error('[BLE Context] Error checking permissions:', _err);
       setError('Failed to check permissions');
       return {
         bluetooth: false,
@@ -71,18 +71,18 @@ export const BleProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         anyBlocked: false,
       };
     }
-  }, []);
+  }, [permissionService]);
 
   const stopScan = useCallback(async () => {
     try {
       await bleService.stopScan();
       setIsScanning(false);
       console.log('[BLE Context] Scan stopped');
-    } catch (err) {
-      console.error('[BLE Context] Error stopping scan:', err);
+    } catch (_err) {
+      console.error('[BLE Context] Error stopping scan:', _err);
       setError('Failed to stop scan');
     }
-  }, []);
+  }, [bleService]);
 
   // Handle app state changes (pause/resume) - AFTER function definitions
   useEffect(() => {
@@ -111,8 +111,8 @@ export const BleProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPermissionStatus(status);
       console.log('[BLE Context] Permissions requested:', status);
       return status;
-    } catch (err) {
-      console.error('[BLE Context] Error requesting permissions:', err);
+    } catch (_err) {
+      console.error('[BLE Context] Error requesting permissions:', _err);
       setError('Failed to request permissions');
       return {
         bluetooth: false,
@@ -122,28 +122,28 @@ export const BleProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         anyBlocked: false,
       };
     }
-  }, []);
+  }, [permissionService]);
 
   const isPermissionBlocked = useCallback(async (): Promise<boolean> => {
     try {
       const blocked = await permissionService.isPermissionBlocked();
       console.log('[BLE Context] Permission blocked:', blocked);
       return blocked;
-    } catch (err) {
-      console.error('[BLE Context] Error checking if blocked:', err);
+    } catch (_err) {
+      console.error('[BLE Context] Error checking if blocked:', _err);
       return false;
     }
-  }, []);
+  }, [permissionService]);
 
   const openAppSettings = useCallback(async () => {
     try {
       await permissionService.openAppSettings();
       console.log('[BLE Context] Opened app settings');
-    } catch (err) {
-      console.error('[BLE Context] Error opening settings:', err);
+    } catch (_err) {
+      console.error('[BLE Context] Error opening settings:', _err);
       setError('Failed to open settings');
     }
-  }, []);
+  }, [permissionService]);
 
   const startScan = useCallback(async () => {
     try {
@@ -191,12 +191,12 @@ export const BleProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('[BLE Context] Auto-stopping scan after 30 seconds');
         await stopScan();
       }, 30000);
-    } catch (err) {
-      console.error('[BLE Context] Error starting scan:', err);
+    } catch (_err) {
+      console.error('[BLE Context] Error starting scan:', _err);
       setError('Failed to start scan');
       setIsScanning(false);
     }
-  }, [bluetoothEnabled, checkBluetoothState]);
+  }, [bluetoothEnabled, checkBluetoothState, bleService, stopScan]);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -209,7 +209,7 @@ export const BleProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         bleService.stopScan();
       }
     };
-  }, []);
+  }, [bleService, isScanning]);
 
   const value: BleContextType = {
     bluetoothEnabled,

@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { useTheme } from '../context/ThemeContext';
 
-const ProfileScreen = ({ navigation }: any) => {
+const ProfileScreen = ({ _navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
 

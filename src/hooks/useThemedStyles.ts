@@ -4,7 +4,6 @@
  */
 
 import { useTheme } from '../context/ThemeContext';
-import { ThemeColors } from '../theme/theme';
 
 export interface CommonStyles {
   screenBg: any;

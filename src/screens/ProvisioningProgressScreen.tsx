@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -45,15 +45,15 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
     cancelProvisioning,
   } = useProvisioning();
 
-  // Animations
-  const pulseRing1 = new Animated.Value(0);
-  const pulseRing2 = new Animated.Value(0);
-  const pulseRing3 = new Animated.Value(0);
-  const successScaleAnim = new Animated.Value(0);
-  const successFadeAnim = new Animated.Value(0);
-  const loadingDot1 = new Animated.Value(0);
-  const loadingDot2 = new Animated.Value(0);
-  const loadingDot3 = new Animated.Value(0);
+  // Animations - use useRef to persist across renders
+  const pulseRing1Ref = React.useRef(new Animated.Value(0)).current;
+  const pulseRing2Ref = React.useRef(new Animated.Value(0)).current;
+  const pulseRing3Ref = React.useRef(new Animated.Value(0)).current;
+  const successScaleAnimRef = React.useRef(new Animated.Value(0)).current;
+  const successFadeAnimRef = React.useRef(new Animated.Value(0)).current;
+  const loadingDot1Ref = React.useRef(new Animated.Value(0)).current;
+  const loadingDot2Ref = React.useRef(new Animated.Value(0)).current;
+  const loadingDot3Ref = React.useRef(new Animated.Value(0)).current;
 
   // Message state
   const [displayMessage, setDisplayMessage] = useState('Connecting your device...');
@@ -64,12 +64,12 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
     // Pulse ring animations - staggered for breathing effect
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseRing1, {
+        Animated.timing(pulseRing1Ref, {
           toValue: 1,
           duration: 2000,
           useNativeDriver: true,
         }),
-        Animated.timing(pulseRing1, {
+        Animated.timing(pulseRing1Ref, {
           toValue: 0,
           duration: 2000,
           useNativeDriver: true,
@@ -80,12 +80,12 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
     Animated.loop(
       Animated.sequence([
         Animated.delay(400),
-        Animated.timing(pulseRing2, {
+        Animated.timing(pulseRing2Ref, {
           toValue: 1,
           duration: 2000,
           useNativeDriver: true,
         }),
-        Animated.timing(pulseRing2, {
+        Animated.timing(pulseRing2Ref, {
           toValue: 0,
           duration: 2000,
           useNativeDriver: true,
@@ -96,12 +96,12 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
     Animated.loop(
       Animated.sequence([
         Animated.delay(800),
-        Animated.timing(pulseRing3, {
+        Animated.timing(pulseRing3Ref, {
           toValue: 1,
           duration: 2000,
           useNativeDriver: true,
         }),
-        Animated.timing(pulseRing3, {
+        Animated.timing(pulseRing3Ref, {
           toValue: 0,
           duration: 2000,
           useNativeDriver: true,
@@ -112,12 +112,12 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
     // Bouncing dots animation
     Animated.loop(
       Animated.sequence([
-        Animated.timing(loadingDot1, {
+        Animated.timing(loadingDot1Ref, {
           toValue: 1,
           duration: 600,
           useNativeDriver: true,
         }),
-        Animated.timing(loadingDot1, {
+        Animated.timing(loadingDot1Ref, {
           toValue: 0,
           duration: 600,
           useNativeDriver: true,
@@ -128,12 +128,12 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
     Animated.loop(
       Animated.sequence([
         Animated.delay(200),
-        Animated.timing(loadingDot2, {
+        Animated.timing(loadingDot2Ref, {
           toValue: 1,
           duration: 600,
           useNativeDriver: true,
         }),
-        Animated.timing(loadingDot2, {
+        Animated.timing(loadingDot2Ref, {
           toValue: 0,
           duration: 600,
           useNativeDriver: true,
@@ -144,19 +144,19 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
     Animated.loop(
       Animated.sequence([
         Animated.delay(400),
-        Animated.timing(loadingDot3, {
+        Animated.timing(loadingDot3Ref, {
           toValue: 1,
           duration: 600,
           useNativeDriver: true,
         }),
-        Animated.timing(loadingDot3, {
+        Animated.timing(loadingDot3Ref, {
           toValue: 0,
           duration: 600,
           useNativeDriver: true,
         }),
       ])
     ).start();
-  }, []);
+  }, [pulseRing1Ref, pulseRing2Ref, pulseRing3Ref, loadingDot1Ref, loadingDot2Ref, loadingDot3Ref]);
 
   // Update message based on provisioning state from our state machine
   useEffect(() => {
@@ -190,12 +190,12 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
         
         // Trigger success animation
         Animated.parallel([
-          Animated.timing(successScaleAnim, {
+          Animated.timing(successScaleAnimRef, {
             toValue: 1,
             duration: 600,
             useNativeDriver: true,
           }),
-          Animated.timing(successFadeAnim, {
+          Animated.timing(successFadeAnimRef, {
             toValue: 1,
             duration: 600,
             useNativeDriver: true,
@@ -268,48 +268,48 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
   };
 
   // Pulse ring interpolations
-  const pulseRing1Scale = pulseRing1.interpolate({
+  const pulseRing1Scale = pulseRing1Ref.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.8],
   });
 
-  const pulseRing1Opacity = pulseRing1.interpolate({
+  const pulseRing1Opacity = pulseRing1Ref.interpolate({
     inputRange: [0, 1],
     outputRange: [0.8, 0],
   });
 
-  const pulseRing2Scale = pulseRing2.interpolate({
+  const pulseRing2Scale = pulseRing2Ref.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.8],
   });
 
-  const pulseRing2Opacity = pulseRing2.interpolate({
+  const pulseRing2Opacity = pulseRing2Ref.interpolate({
     inputRange: [0, 1],
     outputRange: [0.8, 0],
   });
 
-  const pulseRing3Scale = pulseRing3.interpolate({
+  const pulseRing3Scale = pulseRing3Ref.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.8],
   });
 
-  const pulseRing3Opacity = pulseRing3.interpolate({
+  const pulseRing3Opacity = pulseRing3Ref.interpolate({
     inputRange: [0, 1],
     outputRange: [0.8, 0],
   });
 
   // Loading dots interpolations
-  const loadingDot1Y = loadingDot1.interpolate({
+  const loadingDot1Y = loadingDot1Ref.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -12],
   });
 
-  const loadingDot2Y = loadingDot2.interpolate({
+  const loadingDot2Y = loadingDot2Ref.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -12],
   });
 
-  const loadingDot3Y = loadingDot3.interpolate({
+  const loadingDot3Y = loadingDot3Ref.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -12],
   });
@@ -412,8 +412,8 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
                 style={[
                   styles.successIconContainer,
                   {
-                    transform: [{ scale: successScaleAnim }],
-                    opacity: successFadeAnim,
+                    transform: [{ scale: successScaleAnimRef }],
+                    opacity: successFadeAnimRef,
                   },
                 ]}
               >
@@ -513,8 +513,8 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
             style={[
               styles.successCard,
               {
-                transform: [{ scale: successScaleAnim }],
-                opacity: successFadeAnim,
+                transform: [{ scale: successScaleAnimRef }],
+                opacity: successFadeAnimRef,
               },
             ]}
           >

@@ -1,5 +1,4 @@
-import { BleManager, Device, Subscription, Characteristic } from 'react-native-ble-plx';
-import { Platform } from 'react-native';
+import { BleManager, Device, Subscription } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
 
 // Firmware UUIDs - must match ESP32 firmware exactly
@@ -90,7 +89,7 @@ class BleService {
           // Now start the new scan
           this.startScanInternal(onDeviceDiscovered, onScanError);
         })
-        .catch((err) => {
+        .catch((_err) => {
           console.log('[BLE] No previous scan to stop, starting new scan');
           // No previous scan, just start the new one
           this.startScanInternal(onDeviceDiscovered, onScanError);
@@ -445,7 +444,7 @@ class BleService {
 
                 // Clear buffer after successful parse
                 this.notificationBuffer = '';
-              } catch (parseError) {
+              } catch (_parseError) {
                 // Not a complete JSON yet, keep buffering
                 console.log('[BLE] Buffering incomplete JSON...');
               }

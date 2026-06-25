@@ -50,7 +50,7 @@ const WaitingDeviceOnline: React.FC<WaitingDeviceOnlineProps> = ({ duration = 15
     }
   };
 
-  const getStageIcon = (currentStage: Stage): string => {
+  const _getStageIcon = (currentStage: Stage): string => {
     switch (currentStage) {
       case 'credentials':
         return '✓';

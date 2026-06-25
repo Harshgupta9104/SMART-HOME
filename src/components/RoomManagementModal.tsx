@@ -37,12 +37,6 @@ const RoomManagementModal: React.FC<RoomManagementModalProps> = ({
 
   const storageService = getStorageService();
 
-  useEffect(() => {
-    if (visible) {
-      loadRooms();
-    }
-  }, [visible]);
-
   const loadRooms = async () => {
     try {
       setIsLoading(true);
@@ -60,6 +54,12 @@ const RoomManagementModal: React.FC<RoomManagementModalProps> = ({
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (visible) {
+      loadRooms();
+    }
+  }, [visible, loadRooms]);
 
   const handleRenameRoom = async (oldName: string) => {
     if (!newRoomName.trim()) {
@@ -92,7 +92,7 @@ const RoomManagementModal: React.FC<RoomManagementModalProps> = ({
     }
   };
 
-  const handleDeleteRoom = (room: RoomInfo) => {
+  const handleDeleteRoom = (_room: RoomInfo) => {
     // Since rooms are dynamically generated from devices, deletion is not applicable
     // Empty rooms automatically disappear when devices are removed
     Alert.alert(
