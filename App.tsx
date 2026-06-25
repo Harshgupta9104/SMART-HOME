@@ -11,6 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { BleProvider } from './src/context/BleContext';
 import { ThemeProvider } from './src/context/ThemeContext';
+import { AuthProvider } from './src/contexts/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { getMQTTService } from './src/services/mqttService';
 import { getPermissionService } from './src/services/permissionService';
@@ -113,9 +114,11 @@ function App() {
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <BleProvider>
-            <RootNavigator />
-          </BleProvider>
+          <AuthProvider>
+            <BleProvider>
+              <RootNavigator />
+            </BleProvider>
+          </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
