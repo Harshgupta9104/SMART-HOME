@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,11 +17,11 @@ const StartupScreen = ({ navigation, route }: any) => {
   const [stage, setStage] = useState<StartupStage>('splash');
 
   // Animations
-  const logoScale = new Animated.Value(0.8);
-  const logoOpacity = new Animated.Value(0);
-  const textOpacity = new Animated.Value(0);
-  const pulseAnim = new Animated.Value(1);
-  const floatAnim = new Animated.Value(0);
+  const logoScale = useMemo(() => new Animated.Value(0.8), []);
+  const logoOpacity = useMemo(() => new Animated.Value(0), []);
+  const textOpacity = useMemo(() => new Animated.Value(0), []);
+  const pulseAnim = useMemo(() => new Animated.Value(1), []);
+  const floatAnim = useMemo(() => new Animated.Value(0), []);
 
   // Logo animation on mount
   useEffect(() => {
@@ -83,7 +83,7 @@ const StartupScreen = ({ navigation, route }: any) => {
     }, 3500);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [floatAnim, logoOpacity, logoScale, pulseAnim, textOpacity]);
 
   const handleContinue = async () => {
     console.log('[StartupScreen] User tapped Continue, requesting provisioning permissions');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,14 +25,14 @@ const RoomSelector: React.FC<RoomSelectorProps> = ({ selectedRoom, onSelectRoom 
 
   const storageService = getStorageService();
 
-  const loadRooms = async () => {
+  const loadRooms = useCallback(async () => {
     try {
       const existingRooms = await storageService.getRooms();
       setRooms(existingRooms);
     } catch (error) {
       console.error('[RoomSelector] Error loading rooms:', error);
     }
-  };
+  }, [storageService]);
 
   useEffect(() => {
     loadRooms();

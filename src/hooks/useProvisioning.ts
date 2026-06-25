@@ -56,13 +56,21 @@ export const useProvisioning = (): UseProvisioningReturn => {
   const storageService = getStorageService();
   const keychainService = getKeychainService();
 
-  const handleAppStateChange = (state: AppStateStatus) => {
+  const handleAppStateChange = useCallback((state: AppStateStatus) => {
     appStateRef.current = state;
     if (state === 'background' && provisioningState !== ProvisioningState.IDLE) {
       console.log('[Provisioning] App backgrounded, cleaning up');
-      cleanup();
+      // Handle cleanup here without circular dependency
+      if (provisioningTimeoutRef.current) {
+        clearTimeout(provisioningTimeoutRef.current);
+        provisioningTimeoutRef.current = null;
+      }
+      if (currentDeviceIdRef.current) {
+        bleService.disconnectDevice(currentDeviceIdRef.current);
+        currentDeviceIdRef.current = null;
+      }
     }
-  };
+  }, [provisioningState, bleService]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', handleAppStateChange);

@@ -23,7 +23,7 @@ const WiFiSelector: React.FC<WiFiSelectorProps> = ({
   selectedSSID,
   onSelectSSID,
   networks,
-  currentSSID,
+  _currentSSID,
   isScanning,
 }) => {
   const [showPicker, setShowPicker] = useState(false);

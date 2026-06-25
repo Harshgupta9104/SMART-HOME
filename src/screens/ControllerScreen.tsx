@@ -37,7 +37,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       setRelayStatus(newMetrics.relayStatus || false);
     });
     return () => unsubscribe();
-  }, [device]);
+  }, [device, deviceDataService]);
 
   // Pulsing glow when relay is OFF (inverted logic)
   useEffect(() => {
@@ -53,7 +53,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       glowLoop.current?.stop();
       Animated.timing(glowAnim, { toValue: 0, duration: 400, useNativeDriver: false }).start();
     }
-  }, [relayStatus]);
+  }, [relayStatus, glowAnim]);
 
   const handleRelayPress = async () => {
     if (isUpdatingRelay) return;

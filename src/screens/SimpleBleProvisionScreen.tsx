@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -197,7 +197,7 @@ const AnimatedLoadingDots = () => {
         ])
       ).start();
     }, 400);
-  }, []);
+  }, [dot1Anim, dot2Anim, dot3Anim]);
 
   return (
     <View style={styles.animatedDotsContainer}>
@@ -357,7 +357,7 @@ const AnimatedScanningIcon = () => {
         }),
       ])
     ).start();
-  }, []);
+  }, [floatAnim, ripple1Anim, ripple2Anim, ripple3Anim, ripple4Anim]);
 
   return (
     <Animated.View
@@ -478,7 +478,7 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
   // Start scanning on mount
   useEffect(() => {
     startScanning();
-  }, []);
+  }, [startScanning]);
 
   // Smooth transition animation when state changes
   useEffect(() => {
@@ -494,9 +494,10 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [isScanning, devices.length]);
+  }, [isScanning, devices.length, fadeAnim, slideAnim]);
 
-  const startScanning = async () => {
+  // Start scanning on mount
+  const startScanning = useCallback(async () => {
     try {
       setError(null);
       setDevices([]);
@@ -595,22 +596,16 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
           });
         });
       }, 500);
-
-      // Auto-stop after 60 seconds
-      setTimeout(() => {
-        console.log('[SimpleBLE] Auto-stopping scan after 60 seconds');
-        stopScanning();
-      }, 60000);
     } catch (err) {
       console.error('[SimpleBLE] ❌ Error:', err);
       setError(`Error: ${err}`);
       setIsScanning(false);
     }
-  };
+  }, [permissionService, bleService]);
 
   const deviceTimeoutIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const stopScanning = async () => {
+  const stopScanning = useCallback(async () => {
     try {
       await bleService.stopScan();
       setIsScanning(false);
@@ -623,7 +618,18 @@ const SimpleBleProvisionScreen = ({ navigation }: any) => {
     } catch (err) {
       console.error('[SimpleBLE] Error stopping scan:', err);
     }
-  };
+  }, [bleService]);
+
+  // Auto-stop scanning after 60 seconds
+  useEffect(() => {
+    if (isScanning) {
+      const timer = setTimeout(() => {
+        console.log('[SimpleBLE] Auto-stopping scan after 60 seconds');
+        stopScanning();
+      }, 60000);
+      return () => clearTimeout(timer);
+    }
+  }, [isScanning, stopScanning]);
 
   const handleRefresh = async () => {
     console.log('[SimpleBLE] Pull-to-refresh triggered');

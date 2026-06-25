@@ -444,7 +444,7 @@ class BleService {
 
                 // Clear buffer after successful parse
                 this.notificationBuffer = '';
-              } catch (_parseError) {
+              } catch {
                 // Not a complete JSON yet, keep buffering
                 console.log('[BLE] Buffering incomplete JSON...');
               }

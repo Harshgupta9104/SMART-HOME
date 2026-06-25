@@ -74,7 +74,7 @@ const ProvisioningSuccessScreen: React.FC<ProvisioningSuccessScreenProps> = ({
         ],
       });
     });
-  }, []);
+  }, [checkScaleAnim, deviceName, displayName, fadeAnim, navigation, scaleAnim, slideAnim]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>

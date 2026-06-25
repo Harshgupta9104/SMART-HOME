@@ -235,7 +235,7 @@ const ProvisioningProgressScreen: React.FC<ProvisioningProgressScreenProps> = ({
         setDisplayMessage('Connecting your device...');
         setDisplaySubtitle('Setting up WiFi connection');
     }
-  }, [provisioningState, error, ssid, deviceId, deviceName, navigation]);
+  }, [successScaleAnimRef, successFadeAnimRef, provisioningState, currentStep, deviceId, deviceName, error, navigation, ssid]);
 
   // Calculate progress percentage based on current step (gradual, not skipped)
   const getProgressPercentage = () => {
