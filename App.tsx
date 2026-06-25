@@ -16,8 +16,28 @@ import { getMQTTService } from './src/services/mqttService';
 import { getPermissionService } from './src/services/permissionService';
 import { getNotificationService } from './src/services/notificationService';
 import { getMQTTConfig } from './src/config/mqttConfig';
+import { checkFirebaseRuntime } from './src/services/firebase/firebaseRuntimeCheck';
 
 function App() {
+  // Firebase runtime health check (non-blocking)
+  useEffect(() => {
+    const result = checkFirebaseRuntime();
+
+    if (result.ok) {
+      console.log('[Firebase] Runtime check passed', {
+        appCount: result.appCount,
+        appName: result.appName,
+        projectId: result.projectId,
+        appIdMasked: result.appIdMasked,
+        storageBucket: result.storageBucket,
+      });
+    } else {
+      console.warn('[Firebase] Runtime check failed', {
+        errorMessage: result.errorMessage,
+      });
+    }
+  }, []);
+
   // Request permissions silently on app startup
   useEffect(() => {
     const requestPermissions = async () => {
