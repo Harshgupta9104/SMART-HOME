@@ -25,10 +25,6 @@ const RoomSelector: React.FC<RoomSelectorProps> = ({ selectedRoom, onSelectRoom 
 
   const storageService = getStorageService();
 
-  useEffect(() => {
-    loadRooms();
-  }, []);
-
   const loadRooms = async () => {
     try {
       const existingRooms = await storageService.getRooms();
@@ -37,6 +33,10 @@ const RoomSelector: React.FC<RoomSelectorProps> = ({ selectedRoom, onSelectRoom 
       console.error('[RoomSelector] Error loading rooms:', error);
     }
   };
+
+  useEffect(() => {
+    loadRooms();
+  }, [loadRooms]);
 
   const handleCreateRoom = () => {
     if (!newRoomName.trim()) {

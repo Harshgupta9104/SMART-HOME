@@ -43,7 +43,7 @@ const ModernProvisioningLoader: React.FC<ModernProvisioningLoaderProps> = ({
         }),
       ])
     ).start();
-  }, []);
+  }, [spinAnim, pulseAnim]);
 
   const spinInterpolate = spinAnim.interpolate({
     inputRange: [0, 1],

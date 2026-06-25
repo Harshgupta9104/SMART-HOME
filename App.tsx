@@ -8,6 +8,7 @@
 import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { StyleSheet } from 'react-native';
 import { BleProvider } from './src/context/BleContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import RootNavigator from './src/navigation/RootNavigator';
@@ -23,7 +24,7 @@ function App() {
       try {
         const permissionService = getPermissionService();
         await permissionService.requestProvisioningPermissions();
-      } catch (error) {
+      } catch (_error) {
         // Permissions request failed - app will still work but with limited functionality
       }
     };
@@ -89,7 +90,7 @@ function App() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
         <ThemeProvider>
           <BleProvider>
@@ -100,5 +101,9 @@ function App() {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+});
 
 export default App;
