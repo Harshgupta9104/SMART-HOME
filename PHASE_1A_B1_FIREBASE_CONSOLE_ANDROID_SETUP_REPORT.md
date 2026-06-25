@@ -58,7 +58,7 @@ Successfully validated Firebase Console setup and Android app configuration for 
 | **Storage Bucket** | smart-home-5453d.firebasestorage.app |
 | **Mobile SDK App ID** | 1:451956146537:android:4684d9327b50f880cd7df8 |
 | **Package Name** | `com.smarthomeapp` ✅ |
-| **API Key** | AIzaSyA4Mo2adOjr_F4GxHOCUukgwuOXv3_bKjk |
+| **API Key** | AIzaSyA4...Kjk (masked for security) |
 | **Configuration Version** | 1 |
 
 ---
@@ -107,7 +107,7 @@ Match result: EXACT MATCH ✅
 
 **API Key Present:** ✅ YES
 
-**Key:** `AIzaSyA4Mo2adOjr_F4GxHOCUukgwuOXv3_bKjk`
+**Key:** `AIzaSyA4...Kjk` (masked for security)
 
 **Status:** ✅ Configured and ready
 
@@ -295,7 +295,7 @@ All criteria met. Ready to proceed.
 - **Package Name:** com.smarthomeapp
 - **App Name:** SmartHomeApp
 - **Mobile SDK App ID:** 1:451956146537:android:4684d9327b50f880cd7df8
-- **API Key:** AIzaSyA4Mo2adOjr_F4GxHOCUukgwuOXv3_bKjk
+- **API Key:** AIzaSyA4...Kjk (masked for security)
 - **Configuration Version:** 1
 
 ### Security Configuration
