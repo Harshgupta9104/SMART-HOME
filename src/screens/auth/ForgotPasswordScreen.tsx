@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateEmail, normalizeEmail } from '../../utils/authValidation';
+import { getFirebaseAuthErrorMessage } from '../../utils/firebaseAuthErrors';
 import Icon from 'react-native-vector-icons/Feather';
 
 type ForgotPasswordScreenProps = {
@@ -22,7 +23,6 @@ type ForgotPasswordScreenProps = {
 
 const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation }) => {
   const theme = useTheme();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { sendPasswordReset } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -45,17 +45,29 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
 
     setIsLoading(true);
 
-    // Phase 1A-D: UI shell only - no actual Firebase call yet
-    // In Phase 1A-E, this will call sendPasswordReset(email)
-    console.log('[ForgotPasswordScreen] Password reset validation passed - reset action deferred to Phase 1A-E', {
-      email: normalizeEmail(email),
-    });
+    try {
+      const result = await sendPasswordReset(normalizeEmail(email));
 
-    // Simulate a brief loading state to show the UI works
-    setTimeout(() => {
+      if (result.ok) {
+        setGeneralError(null);
+        console.log('[ForgotPasswordScreen] Password reset email sent', {
+          email: normalizeEmail(email),
+        });
+        // Show success message
+        setGeneralError('Password reset email sent. Check your inbox.');
+      } else {
+        const userMessage = getFirebaseAuthErrorMessage(
+          result.errorCode,
+          result.errorMessage,
+        );
+        setGeneralError(userMessage);
+      }
+    } catch (error) {
+      setGeneralError('An unexpected error occurred. Please try again.');
+      console.error('[ForgotPasswordScreen] Password reset error:', error);
+    } finally {
       setIsLoading(false);
-      setGeneralError('📋 Phase 1A-D: Password reset UI validated. Reset action deferred to Phase 1A-E.');
-    }, 800);
+    }
   };
 
   const colors = theme.theme;

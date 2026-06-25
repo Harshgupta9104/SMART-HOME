@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateEmail, validatePassword, normalizeEmail } from '../../utils/authValidation';
+import { getFirebaseAuthErrorMessage } from '../../utils/firebaseAuthErrors';
 import Icon from 'react-native-vector-icons/Feather';
 
 type LoginScreenProps = {
@@ -22,7 +23,6 @@ type LoginScreenProps = {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const theme = useTheme();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { signInWithEmail } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -52,17 +52,30 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
     setIsLoading(true);
 
-    // Phase 1A-D: UI shell only - no actual Firebase call yet
-    // In Phase 1A-E, this will call signInWithEmail(email, password)
-    console.log('[LoginScreen] Login validation passed - auth action deferred to Phase 1A-E', {
-      email: normalizeEmail(email),
-    });
+    try {
+      const result = await signInWithEmail(normalizeEmail(email), password);
 
-    // Simulate a brief loading state to show the UI works
-    setTimeout(() => {
+      if (result.ok) {
+        setGeneralError(null);
+        console.log('[LoginScreen] User signed in successfully', {
+          userId: result.data?.uid,
+          email: result.data?.email,
+        });
+        // UI shows success, user is now authenticated via AuthContext
+        // No global redirect here - user can navigate manually or auth gate can handle in Phase 1A-F
+      } else {
+        const userMessage = getFirebaseAuthErrorMessage(
+          result.errorCode,
+          result.errorMessage,
+        );
+        setGeneralError(userMessage);
+      }
+    } catch (error) {
+      setGeneralError('An unexpected error occurred. Please try again.');
+      console.error('[LoginScreen] Sign in error:', error);
+    } finally {
       setIsLoading(false);
-      setGeneralError('📋 Phase 1A-D: Login UI validated. Backend auth deferred to Phase 1A-E.');
-    }, 800);
+    }
   };
 
   const colors = theme.theme;

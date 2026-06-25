@@ -19,6 +19,7 @@ import {
   validateConfirmPassword,
   normalizeEmail,
 } from '../../utils/authValidation';
+import { getFirebaseAuthErrorMessage } from '../../utils/firebaseAuthErrors';
 import Icon from 'react-native-vector-icons/Feather';
 
 type SignupScreenProps = {
@@ -27,7 +28,6 @@ type SignupScreenProps = {
 
 const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const theme = useTheme();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { createAccountWithEmail } = useAuth();
 
   const [name, setName] = useState('');
@@ -63,18 +63,31 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
     setIsLoading(true);
 
-    // Phase 1A-D: UI shell only - no actual Firebase call yet
-    // In Phase 1A-E, this will call createAccountWithEmail(email, password)
-    console.log('[SignupScreen] Signup validation passed - account creation deferred to Phase 1A-E', {
-      email: normalizeEmail(email),
-      name: name.trim() || '(not provided)',
-    });
+    try {
+      const result = await createAccountWithEmail(normalizeEmail(email), password);
 
-    // Simulate a brief loading state to show the UI works
-    setTimeout(() => {
+      if (result.ok) {
+        setGeneralError(null);
+        console.log('[SignupScreen] Account created successfully', {
+          userId: result.data?.uid,
+          email: result.data?.email,
+        });
+        // UI shows success, new user is now authenticated via AuthContext
+        // Name field is not saved to Firestore in this phase
+        // No global redirect here - user can navigate manually or auth gate can handle in Phase 1A-F
+      } else {
+        const userMessage = getFirebaseAuthErrorMessage(
+          result.errorCode,
+          result.errorMessage,
+        );
+        setGeneralError(userMessage);
+      }
+    } catch (error) {
+      setGeneralError('An unexpected error occurred. Please try again.');
+      console.error('[SignupScreen] Signup error:', error);
+    } finally {
       setIsLoading(false);
-      setGeneralError('📋 Phase 1A-D: Signup UI validated. Account creation deferred to Phase 1A-E.');
-    }, 800);
+    }
   };
 
   const colors = theme.theme;
