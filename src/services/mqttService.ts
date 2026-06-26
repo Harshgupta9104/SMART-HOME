@@ -39,8 +39,7 @@ class MqttService {
   async connect(config: MQTTConfig): Promise<boolean> {
     return new Promise((resolve) => {
       console.log('[MQTT] 🔌 Starting connection to HiveMQ...');
-      console.log('[MQTT] URL:', config.url);
-      console.log('[MQTT] Username:', config.username);
+      // Do not log URL, username or any other credentials
 
       const mqttOptions = {
         clientId: config.clientId,
@@ -339,7 +338,7 @@ class MqttService {
         password: password,
       });
 
-      console.log('[MQTT] 📶 Publishing WiFi update to:', topic);
+      console.log('[MQTT] 📶 Publishing WiFi update command to:', topic);
 
       return new Promise((resolve) => {
         if (this.client?.publish) {
@@ -348,7 +347,7 @@ class MqttService {
               console.error('[MQTT] ❌ Publish error:', err);
               resolve(false);
             } else {
-              console.log('[MQTT] ✅ Published to', topic, ':', payload);
+              console.log('[MQTT] ✅ WiFi update command published');
               resolve(true);
             }
           });
@@ -387,7 +386,7 @@ class MqttService {
               console.error('[MQTT] ❌ Publish error:', err);
               resolve(false);
             } else {
-              console.log('[MQTT] ✅ Published to', topic, ':', payload);
+              console.log('[MQTT] ✅ Factory reset command published');
               resolve(true);
             }
           });

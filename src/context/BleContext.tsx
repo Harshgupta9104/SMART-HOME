@@ -150,9 +150,11 @@ export const BleProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setError(null);
       setDiscoveredDevices([]);
 
-      // Check Bluetooth state
-      await checkBluetoothState();
-      if (!bluetoothEnabled) {
+      // Check Bluetooth state (get fresh value, not stale React state)
+      const enabled = await bleService.checkBluetoothState();
+      setBluetoothEnabled(enabled);
+      
+      if (!enabled) {
         console.log('[BLE Context] Bluetooth is disabled');
         setError('Bluetooth is disabled. Please enable Bluetooth to scan for devices.');
         return;
@@ -196,7 +198,7 @@ export const BleProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setError('Failed to start scan');
       setIsScanning(false);
     }
-  }, [bluetoothEnabled, checkBluetoothState, bleService, stopScan]);
+  }, [bleService, stopScan]);
 
   const clearError = useCallback(() => {
     setError(null);

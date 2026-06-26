@@ -1,4 +1,4 @@
-import { Platform, PermissionsAndroid } from 'react-native';
+import { Platform, PermissionsAndroid, Linking } from 'react-native';
 
 export interface PermissionStatus {
   bluetooth: boolean;
@@ -181,8 +181,10 @@ class PermissionService {
   async openAppSettings(): Promise<void> {
     try {
       console.log('[Permission] Opening app settings');
+      await Linking.openSettings();
     } catch (error) {
       console.error('[Permission] Error opening settings:', error);
+      throw error;
     }
   }
 }

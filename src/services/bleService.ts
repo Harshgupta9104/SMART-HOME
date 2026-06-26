@@ -462,13 +462,12 @@ class BleService {
       };
 
       const jsonString = JSON.stringify(credentialsPayload);
-      console.log('[BLE] Credentials payload:', jsonString);
+      console.log('[BLE] WiFi credentials prepared for transmission');
       console.log('[BLE] Payload length:', jsonString.length, 'bytes');
 
       // Encode to base64 for BLE transmission
       const encodedPayload = Buffer.from(jsonString, 'utf8').toString('base64');
       console.log('[BLE] Encoded payload length:', encodedPayload.length);
-      console.log('[BLE] Encoded payload:', encodedPayload);
 
       // Send credentials directly (BLE library handles chunking internally)
       onStatusUpdate('Sending credentials...');

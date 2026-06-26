@@ -16,7 +16,6 @@ import Icon from 'react-native-vector-icons/Feather';
 import { getStorageService, ProvisionedDevice, RoomSortMode } from '../services/storageService';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 import { useTheme } from '../context/ThemeContext';
-import { useAuth } from '../contexts/AuthContext';
 
 interface ActivityLog {
   id: string;
@@ -28,7 +27,6 @@ interface ActivityLog {
 const HomeScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
-  const { isAuthenticated } = useAuth();
   const [devices, setDevices] = useState<ProvisionedDevice[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string>('All rooms');
@@ -303,12 +301,6 @@ const HomeScreen = ({ navigation }: any) => {
           <View style={styles.titleRow}>
             <Text style={[styles.title, { color: theme.textPrimary }]}>Smart Home</Text>
             <View style={styles.headerIconsRow}>
-              <TouchableOpacity
-                style={[styles.headerIcon, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                onPress={() => navigation.navigate('Settings')}
-              >
-                <Icon name={isAuthenticated ? 'user' : 'log-in'} size={20} color={theme.textPrimary} />
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.headerIcon, { backgroundColor: theme.surface, borderColor: theme.border }]}
                 onPress={() => navigation.navigate('Notifications')}
