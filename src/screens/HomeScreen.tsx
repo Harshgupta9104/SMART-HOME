@@ -13,9 +13,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
-import { getStorageService, ProvisionedDevice, RoomSortMode } from '../services/storageService';
+import { getStorageService, ProvisionedDevice } from '../services/storageService';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 import { useTheme } from '../context/ThemeContext';
+import { useRoom } from '../contexts/RoomContext';
 
 interface ActivityLog {
   id: string;
@@ -27,6 +28,7 @@ interface ActivityLog {
 const HomeScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
+  const { rooms: firestoreRooms } = useRoom();
   const [devices, setDevices] = useState<ProvisionedDevice[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string>('All rooms');
@@ -37,45 +39,13 @@ const HomeScreen = ({ navigation }: any) => {
   const storageService = getStorageService();
   const deviceDataService = getDeviceDataService();
   const unsubscribersRef = useRef<Map<string, () => void>>(new Map());
-  const [rooms, setRooms] = useState<string[]>(['All rooms']);
 
   // Helper: Normalize room names for safe comparison
   const normalizeRoomName = (roomName?: string): string => {
     return (roomName || 'Unassigned').trim().toLowerCase();
   };
 
-  // Helper: Get device count by room name (for sorting)
-  const getRoomDeviceCountByName = useCallback((room: string, deviceList: ProvisionedDevice[]): number => {
-    return deviceList.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
-  }, []);
 
-  // Helper: Sort rooms based on sort mode
-  const sortRooms = useCallback((roomList: string[], sortMode: RoomSortMode, deviceList: ProvisionedDevice[]): string[] => {
-    const roomsCopy = [...roomList];
-    switch (sortMode) {
-      case 'name_asc':
-        return roomsCopy.sort((a, b) => a.localeCompare(b));
-      case 'name_desc':
-        return roomsCopy.sort((a, b) => b.localeCompare(a));
-      case 'device_count_desc':
-        return roomsCopy.sort((a, b) => {
-          const countDiff =
-            getRoomDeviceCountByName(b, deviceList) - getRoomDeviceCountByName(a, deviceList);
-          if (countDiff !== 0) return countDiff;
-          return a.localeCompare(b);
-        });
-      case 'device_count_asc':
-        return roomsCopy.sort((a, b) => {
-          const countDiff =
-            getRoomDeviceCountByName(a, deviceList) - getRoomDeviceCountByName(b, deviceList);
-          if (countDiff !== 0) return countDiff;
-          return a.localeCompare(b);
-        });
-      case 'custom':
-      default:
-        return roomsCopy;
-    }
-  }, [getRoomDeviceCountByName]);
 
   const loadProvisionedDevices = useCallback(async () => {
     try {
@@ -98,41 +68,37 @@ const HomeScreen = ({ navigation }: any) => {
     }
   }, [storageService, deviceDataService]);
 
-  const loadRoomsWithDevices = useCallback(async (deviceList: ProvisionedDevice[]) => {
+  const loadRoomsWithDevices = useCallback(async () => {
     try {
-      const savedRooms = await storageService.getRooms();
-      const sortMode = await storageService.getRoomSortMode();
-      // Use the passed device list instead of state
-      const sortedRooms = sortRooms(savedRooms, sortMode, deviceList);
-      setRooms(['All rooms', ...sortedRooms]);
-      
+      // Firestore rooms are source of truth (from RoomContext)
+      // No need to process deviceList, just render Firestore rooms
       // If selected room was deleted, reset to "All rooms"
-      if (selectedRoom !== 'All rooms' && !['All rooms', ...sortedRooms].includes(selectedRoom)) {
+      const firestoreRoomNames = firestoreRooms.map(room => room.name);
+      if (selectedRoom !== 'All rooms' && !firestoreRoomNames.includes(selectedRoom)) {
         setSelectedRoom('All rooms');
       }
     } catch (error) {
       console.error('[HomeScreen] Error loading rooms:', error);
     }
-  }, [selectedRoom, storageService, sortRooms]);
+  }, [firestoreRooms, selectedRoom]);
 
   useFocusEffect(
     useCallback(() => {
       const load = async () => {
         await loadProvisionedDevices();
-        // After loading devices, load rooms with fresh device data
-        const freshDevices = await storageService.getProvisionedDevices();
-        await loadRoomsWithDevices(freshDevices);
+        // After loading devices, validate room selection
+        await loadRoomsWithDevices();
       };
       load();
-    }, [loadProvisionedDevices, loadRoomsWithDevices, storageService])
+    }, [loadProvisionedDevices, loadRoomsWithDevices])
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadProvisionedDevices();
-    loadRoomsWithDevices(devices);
+    loadRoomsWithDevices();
     setTimeout(() => setRefreshing(false), 1000);
-  }, [devices, loadProvisionedDevices, loadRoomsWithDevices]);
+  }, [loadProvisionedDevices, loadRoomsWithDevices]);
 
   const handleAddDevice = () => {
     navigation.navigate('AddDevice');
@@ -242,12 +208,6 @@ const HomeScreen = ({ navigation }: any) => {
     return device.roomName || 'Unassigned';
   };
 
-  // Helper: Get device count for a specific room
-  const getRoomDeviceCount = (room: string): number => {
-    if (room === 'All rooms') return devices.length;
-    return devices.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(room)).length;
-  };
-
   // Filter devices by selected room
   const filteredDevices = selectedRoom === 'All rooms'
     ? devices
@@ -335,27 +295,49 @@ const HomeScreen = ({ navigation }: any) => {
         {/* Room Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roomTabsScroll}>
           <View style={styles.roomTabsContent}>
-            {rooms.map(room => {
-              const roomCount = getRoomDeviceCount(room);
+            {/* All rooms tab */}
+            <TouchableOpacity
+              style={[
+                styles.roomTab,
+                {
+                  backgroundColor: selectedRoom === 'All rooms' ? theme.primary : theme.chipBackground,
+                  borderColor: selectedRoom === 'All rooms' ? 'transparent' : theme.border,
+                },
+              ]}
+              onPress={() => setSelectedRoom('All rooms')}
+            >
+              <Text
+                style={[
+                  styles.roomTabText,
+                  { color: selectedRoom === 'All rooms' ? theme.background : theme.textSecondary },
+                ]}
+              >
+                All rooms ({devices.length})
+              </Text>
+            </TouchableOpacity>
+
+            {/* Firestore rooms tabs */}
+            {firestoreRooms.map(room => {
+              const roomCount = devices.filter(device => (device.roomName || 'Unassigned').trim().toLowerCase() === room.name.trim().toLowerCase()).length;
               return (
                 <TouchableOpacity
-                  key={room}
+                  key={room.id}
                   style={[
                     styles.roomTab,
                     {
-                      backgroundColor: selectedRoom === room ? theme.primary : theme.chipBackground,
-                      borderColor: selectedRoom === room ? 'transparent' : theme.border,
+                      backgroundColor: selectedRoom === room.name ? theme.primary : theme.chipBackground,
+                      borderColor: selectedRoom === room.name ? 'transparent' : theme.border,
                     },
                   ]}
-                  onPress={() => setSelectedRoom(room)}
+                  onPress={() => setSelectedRoom(room.name)}
                 >
                   <Text
                     style={[
                       styles.roomTabText,
-                      { color: selectedRoom === room ? theme.background : theme.textSecondary },
+                      { color: selectedRoom === room.name ? theme.background : theme.textSecondary },
                     ]}
                   >
-                    {room} {roomCount > 0 ? `(${roomCount})` : ''}
+                    {room.name} {roomCount > 0 ? `(${roomCount})` : ''}
                   </Text>
                 </TouchableOpacity>
               );
