@@ -16,8 +16,9 @@ import ProfileScreen from '../screens/ProfileScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import RoomManagementScreen from '../screens/RoomManagementScreen';
-import { LoginScreen, SignupScreen, ForgotPasswordScreen } from '../screens/auth';
+import { AuthWelcomeScreen, LoginScreen, SignupScreen, ForgotPasswordScreen } from '../screens/auth';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { getNavigationTheme } from '../theme/theme';
 
 const Stack = createNativeStackNavigator();
@@ -25,6 +26,7 @@ const Stack = createNativeStackNavigator();
 const RootNavigator = () => {
   const [isLoading, setIsLoading] = useState(true);
   const { resolvedMode } = useTheme();
+  const { loadingState, isAuthenticated } = useAuth();
 
   useEffect(() => {
     // Simulate minimal loading time
@@ -35,7 +37,8 @@ const RootNavigator = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading) {
+  // Show loading screen while both local loading and Firebase auth are initializing
+  if (isLoading || loadingState === 'initializing') {
     return (
       <NavigationContainer>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -54,115 +57,131 @@ const RootNavigator = () => {
           headerShown: false,
         }}
       >
-        <Stack.Screen name="HomeMain" component={HomeScreen} />
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="Signup"
-          component={SignupScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="ForgotPassword"
-          component={ForgotPasswordScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="AddDevice"
-          component={AddDeviceScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="DeviceDetails"
-          component={DeviceDetailsScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="SimpleBleProvision"
-          component={SimpleBleProvisionScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="DeviceConfig"
-          component={DeviceConfigScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="WiFiProvisioning"
-          component={WiFiProvisioningScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="ProvisioningProgress"
-          component={ProvisioningProgressScreen}
-          options={{
-            headerShown: false,
-            gestureEnabled: false,
-          }}
-        />
-        <Stack.Screen
-          name="ProvisioningSuccess"
-          component={ProvisioningSuccessScreen}
-          options={{
-            headerShown: false,
-            gestureEnabled: false,
-          }}
-        />
-        <Stack.Screen
-          name="DeviceNaming"
-          component={DeviceNamingScreen}
-          options={{
-            headerShown: false,
-            gestureEnabled: false,
-          }}
-        />
-        <Stack.Screen
-          name="Profile"
-          component={ProfileScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="Notifications"
-          component={NotificationScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="Settings"
-          component={SettingsScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="RoomManagement"
-          component={RoomManagementScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
+        {!isAuthenticated ? (
+          // Auth Stack - shown when user is not authenticated
+          <>
+            <Stack.Screen
+              name="AuthWelcome"
+              component={AuthWelcomeScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="Signup"
+              component={SignupScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ForgotPassword"
+              component={ForgotPasswordScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+          </>
+        ) : (
+          // App Stack - shown when user is authenticated
+          <>
+            <Stack.Screen name="HomeMain" component={HomeScreen} />
+            <Stack.Screen
+              name="AddDevice"
+              component={AddDeviceScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="DeviceDetails"
+              component={DeviceDetailsScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="SimpleBleProvision"
+              component={SimpleBleProvisionScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="DeviceConfig"
+              component={DeviceConfigScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="WiFiProvisioning"
+              component={WiFiProvisioningScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ProvisioningProgress"
+              component={ProvisioningProgressScreen}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="ProvisioningSuccess"
+              component={ProvisioningSuccessScreen}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="DeviceNaming"
+              component={DeviceNamingScreen}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="Profile"
+              component={ProfileScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="Settings"
+              component={SettingsScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="RoomManagement"
+              component={RoomManagementScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
