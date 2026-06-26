@@ -459,7 +459,26 @@ Scope:
 
 ---
 
-## Summary
+## Phase 2A-FIX Verification
+
+**Fixed after review:**
+- ✅ Removed fake fallback email (`'user@example.com'`) from ProfileScreen
+- ✅ Missing Firestore profile no longer displays "Disabled" status; now shows "Profile pending"
+- ✅ Removed dead Edit button from profile card
+- ✅ Removed raw error object logging from profile service, AuthContext, and ProfileScreen
+- ✅ Firestore scope remains limited to `users/{uid}` only
+- ✅ No homes, rooms, devices, channels, scenes, or automationRules created
+
+**Manual Runtime Test Status:**
+- ⏸️ **NOT TESTED** — Emulator/device unavailable at time of cleanup
+- When runtime testing is performed, verify:
+  1. Login displays profile with Firebase email (not fake fallback)
+  2. Missing profile shows "Profile pending" status (not "Disabled")
+  3. Edit button not visible on profile card
+  4. Firestore console shows `users/{uid}` collection only
+  5. Logout and login again creates no duplicate document
+
+---
 
 **Phase 2A Status: ✅ COMPLETE**
 

@@ -59,9 +59,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           displayName: nextUser.displayName,
           photoURL: nextUser.photoURL,
           phoneNumber: nextUser.phoneNumber,
-        }).catch(error => {
+        }).catch(() => {
           // Log error but don't block auth flow
-          console.error('[AuthContext] Profile bootstrap error:', error);
+          console.error('[AuthContext] Profile bootstrap failed');
         });
       }
       

@@ -58,7 +58,7 @@ export const createUserProfileIfMissing = async (
     console.log('[UserProfile] User profile created successfully');
     return defaultProfile;
   } catch (error) {
-    console.error('[UserProfile] Error creating user profile:', error);
+    console.error('[UserProfile] Failed to create user profile');
     throw error;
   }
 };
@@ -82,7 +82,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
     console.log('[UserProfile] User profile retrieved');
     return profile;
   } catch (error) {
-    console.error('[UserProfile] Error getting user profile:', error);
+    console.error('[UserProfile] Failed to get user profile');
     throw error;
   }
 };
@@ -132,7 +132,7 @@ export const updateUserProfile = async (
     const updatedSnapshot = await userDocRef.get();
     return updatedSnapshot.data() as UserProfile;
   } catch (error) {
-    console.error('[UserProfile] Error updating user profile:', error);
+    console.error('[UserProfile] Failed to update user profile');
     throw error;
   }
 };
@@ -153,7 +153,7 @@ export const touchLastLogin = async (uid: string): Promise<void> => {
 
     console.log('[UserProfile] lastLoginAt touched');
   } catch (error) {
-    console.error('[UserProfile] Error touching lastLoginAt:', error);
+    console.error('[UserProfile] Failed to touch last login');
     throw error;
   }
 };

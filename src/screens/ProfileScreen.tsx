@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,21 +7,26 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  StyleSheet,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import Icon from 'react-native-vector-icons/Feather';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserProfile } from '../services/firebase/userProfileService';
 import { UserProfile } from '../types/userProfile';
 
-const ProfileScreen = ({ _navigation }: any) => {
+const ProfileScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
   const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -35,8 +40,8 @@ const ProfileScreen = ({ _navigation }: any) => {
         setError(null);
         const userProfile = await getUserProfile(user.uid);
         setProfile(userProfile);
-      } catch (err) {
-        console.error('[ProfileScreen] Error loading profile:', err);
+      } catch {
+        console.error('[ProfileScreen] Failed to load profile');
         setError('Failed to load profile');
       } finally {
         setIsLoading(false);
@@ -46,7 +51,7 @@ const ProfileScreen = ({ _navigation }: any) => {
     loadProfile();
   }, [user?.uid]);
 
-  const handleRetry = () => {
+  const handleRetry = React.useCallback(() => {
     if (user?.uid) {
       setIsLoading(true);
       setError(null);
@@ -54,8 +59,8 @@ const ProfileScreen = ({ _navigation }: any) => {
         try {
           const userProfile = await getUserProfile(user.uid);
           setProfile(userProfile);
-        } catch (err) {
-          console.error('[ProfileScreen] Error loading profile:', err);
+        } catch {
+          console.error('[ProfileScreen] Failed to load profile');
           setError('Failed to load profile');
         } finally {
           setIsLoading(false);
@@ -63,7 +68,7 @@ const ProfileScreen = ({ _navigation }: any) => {
       };
       loadProfile();
     }
-  };
+  }, [user?.uid]);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -75,276 +80,566 @@ const ProfileScreen = ({ _navigation }: any) => {
   };
 
   const displayName = profile?.displayName || 'Smart Home User';
-  const displayEmail = profile?.email || 'user@example.com';
+  const displayEmail = profile?.email || user?.email || 'Email unavailable';
   const userInitial = displayName.charAt(0).toUpperCase() || 'U';
 
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    handleRetry();
+    setTimeout(() => setRefreshing(false), 1000);
+  }, [handleRetry]);
+
   return (
-    <View className="flex-1" style={{ backgroundColor: theme.background, paddingTop: insets.top }}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
-      {/* Header */}
-      <View className="px-5 py-4">
-        <Text className="text-4xl font-extrabold" style={{ color: theme.textPrimary, letterSpacing: -1 }}>
-          Profile
-        </Text>
-      </View>
-
       {isLoading ? (
-        // Loading state
-        <View className="flex-1 items-center justify-center">
+        // Loading state with spinner
+        <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text className="mt-4 text-sm" style={{ color: theme.textMuted }}>Loading profile...</Text>
+          <Text style={[styles.loadingText, { color: theme.textMuted, marginTop: 16 }]}>Loading profile...</Text>
         </View>
       ) : error ? (
-        // Error state
-        <View className="flex-1 items-center justify-center px-5">
-          <View className="w-16 h-16 rounded-full items-center justify-center mb-4" style={{ backgroundColor: theme.danger + '20' }}>
-            <Icon name="alert-circle" size={28} color={theme.danger} />
+        // Error state with retry button
+        <View style={styles.centerContainer}>
+          <View style={[styles.errorIconBox, { backgroundColor: theme.danger + '20' }]}>
+            <Icon name="alert-circle" size={32} color={theme.danger} />
           </View>
-          <Text className="text-base font-semibold text-center" style={{ color: theme.textPrimary }}>
-            {error}
-          </Text>
+          <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>{error}</Text>
           <TouchableOpacity 
-            className="mt-6 px-6 py-3 rounded-2xl"
-            style={{ backgroundColor: theme.primary }}
+            style={[styles.retryButton, { backgroundColor: theme.primary }]}
             onPress={handleRetry}
           >
-            <Text className="text-sm font-semibold" style={{ color: 'white' }}>Try Again</Text>
+            <Icon name="refresh-cw" size={16} color="white" />
+            <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       ) : (
         // Profile content
-        <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+        <ScrollView
+          ref={scrollRef}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.primary}
+              colors={[theme.primary]}
+              progressBackgroundColor={theme.surface}
+            />
+          }
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Profile</Text>
+          </View>
           {/* User Profile Card */}
-          <View className="rounded-3xl p-5 mb-5 flex-row items-center gap-4" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-16 h-16 rounded-full items-center justify-center" style={{ backgroundColor: theme.primary }}>
-              <Text className="text-2xl font-bold" style={{ color: theme.surface }}>{userInitial}</Text>
-            </View>
-            <View className="flex-1 gap-1">
-              <Text className="text-base font-bold" style={{ color: theme.textPrimary }}>{displayName}</Text>
-              <Text className="text-sm" style={{ color: theme.textSecondary }}>{displayEmail}</Text>
-              <View className="rounded-2xl px-2.5 py-1 self-start mt-1" style={{ backgroundColor: theme.primarySoft }}>
-                <Text className="text-xs font-semibold" style={{ color: theme.primary }}>{profile?.status === 'active' ? 'Active' : 'Disabled'}</Text>
+          <Animated.View entering={FadeInDown.delay(100)} style={styles.profileCardWrapper}>
+            <View style={[styles.profileCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={styles.profileCardContent}>
+                <View style={[styles.userAvatar, { backgroundColor: theme.primary }]}>
+                  <Text style={[styles.avatarText, { color: theme.surface }]}>{userInitial}</Text>
+                </View>
+                <View style={styles.profileInfo}>
+                  <Text style={[styles.profileName, { color: theme.textPrimary }]} numberOfLines={1}>
+                    {displayName}
+                  </Text>
+                  <Text style={[styles.profileEmail, { color: theme.textSecondary }]} numberOfLines={1}>
+                    {displayEmail}
+                  </Text>
+                  <View style={[styles.statusBadge, { backgroundColor: theme.primarySoft }]}>
+                    <View style={[styles.statusDot, { backgroundColor: theme.success }]} />
+                    <Text style={[styles.statusText, { color: theme.primary }]}>
+                      {profile?.status === 'active'
+                        ? 'Active'
+                        : profile?.status === 'disabled'
+                        ? 'Disabled'
+                        : 'Profile pending'}
+                    </Text>
+                  </View>
+                </View>
               </View>
             </View>
-            <TouchableOpacity className="flex-row items-center gap-1.5 px-3 py-2 rounded-2xl border" style={{ borderColor: theme.primary }}>
-              <Icon name="edit-2" size={16} color={theme.primary} />
-              <Text className="text-xs font-semibold" style={{ color: theme.primary }}>Edit</Text>
-            </TouchableOpacity>
-          </View>
+          </Animated.View>
 
-        {/* Home Card */}
-        <View className="rounded-3xl p-5 mb-6" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-          <View className="flex-row items-center gap-3 mb-4">
-            <Icon name="home" size={20} color={theme.primary} />
-            <Text className="text-base font-bold" style={{ color: theme.textPrimary }}>My Home</Text>
-          </View>
-          <View className="flex-row gap-3 justify-between">
-            <View className="flex-1 rounded-2xl py-4 items-center gap-1" style={{ backgroundColor: theme.surface }}>
-              <Text className="text-lg font-bold" style={{ color: theme.textPrimary }}>1</Text>
-              <Text className="text-xs font-medium" style={{ color: theme.textMuted }}>Device</Text>
+          {/* Home Statistics Card */}
+          <Animated.View entering={FadeInDown.delay(200)} style={[styles.statsCardWrapper, { marginHorizontal: 16 }]}>
+            <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={styles.statsHeader}>
+                <Icon name="home" size={20} color={theme.primary} />
+                <Text style={[styles.statsTitle, { color: theme.textPrimary }]}>My Home</Text>
+              </View>
+              <View style={styles.statsGrid}>
+                <View style={[styles.statItem, { backgroundColor: theme.surface }]}>
+                  <Text style={[styles.statValue, { color: theme.textPrimary }]}>1</Text>
+                  <Text style={[styles.statLabel, { color: theme.textMuted }]}>Device</Text>
+                </View>
+                <View style={[styles.statItem, { backgroundColor: theme.surface }]}>
+                  <Text style={[styles.statValue, { color: theme.textPrimary }]}>1</Text>
+                  <Text style={[styles.statLabel, { color: theme.textMuted }]}>Online</Text>
+                </View>
+                <View style={[styles.statItem, { backgroundColor: theme.surface }]}>
+                  <Text style={[styles.statValue, { color: theme.textPrimary }]}>0</Text>
+                  <Text style={[styles.statLabel, { color: theme.textMuted }]}>Rooms</Text>
+                </View>
+              </View>
             </View>
-            <View className="flex-1 rounded-2xl py-4 items-center gap-1" style={{ backgroundColor: theme.surface }}>
-              <Text className="text-lg font-bold" style={{ color: theme.textPrimary }}>1</Text>
-              <Text className="text-xs font-medium" style={{ color: theme.textMuted }}>Online</Text>
-            </View>
-            <View className="flex-1 rounded-2xl py-4 items-center gap-1" style={{ backgroundColor: theme.surface }}>
-              <Text className="text-lg font-bold" style={{ color: theme.textPrimary }}>0</Text>
-              <Text className="text-xs font-medium" style={{ color: theme.textMuted }}>Rooms</Text>
-            </View>
-          </View>
-        </View>
+          </Animated.View>
 
-        {/* Home Settings Section */}
-        <View className="mb-6">
-          <Text className="text-xs font-bold mb-3 px-1" style={{ color: theme.textMuted, letterSpacing: 0.5 }}>HOME SETTINGS</Text>
-          
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="home" size={20} color={theme.primary} />
+          {/* Home Settings Section */}
+          <Animated.View entering={FadeInDown.delay(300)}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>HOME SETTINGS</Text>
             </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Manage Home</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Edit home name and details</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
 
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="grid" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Rooms</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Organize devices by room</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
+            <MenuCard
+              icon="home"
+              title="Manage Home"
+              subtitle="Edit home name and details"
+              theme={theme}
+              onPress={() => navigation.navigate('RoomManagement')}
+            />
+            <MenuCard
+              icon="grid"
+              title="Rooms"
+              subtitle="Organize devices by room"
+              theme={theme}
+              onPress={() => navigation.navigate('RoomManagement')}
+            />
+            <MenuCard
+              icon="users"
+              title="Family Members"
+              subtitle="Manage home access"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Family member management coming in next update')}
+            />
+            <MenuCard
+              icon="smartphone"
+              title="Device Management"
+              subtitle="View and control all devices"
+              theme={theme}
+              onPress={() => navigation.navigate('HomeMain')}
+            />
+          </Animated.View>
 
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="users" size={20} color={theme.primary} />
+          {/* App Preferences Section */}
+          <Animated.View entering={FadeInDown.delay(400)}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>APP PREFERENCES</Text>
             </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Family Members</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Manage home access</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
 
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="smartphone" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Device Management</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>View and control all devices</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
-        </View>
+            <MenuCard
+              icon="bell"
+              title="Notifications"
+              subtitle="Manage alerts and device updates"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Notification settings coming soon')}
+            />
+            <MenuCard
+              icon="moon"
+              title="Theme"
+              subtitle="Light, Dark or System"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Theme selector coming soon')}
+            />
+            <MenuCard
+              icon="globe"
+              title="Language"
+              subtitle="English (Default)"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Language settings coming soon')}
+            />
+            <MenuCard
+              icon="eye"
+              title="App Appearance"
+              subtitle="Font size and display settings"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Appearance settings coming soon')}
+            />
+          </Animated.View>
 
-        {/* App Preferences Section */}
-        <View className="mb-6">
-          <Text className="text-xs font-bold mb-3 px-1" style={{ color: theme.textMuted, letterSpacing: 0.5 }}>APP PREFERENCES</Text>
-          
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="bell" size={20} color={theme.primary} />
+          {/* Device & System Section */}
+          <Animated.View entering={FadeInDown.delay(500)}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>DEVICE & SYSTEM</Text>
             </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Notifications</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Manage alerts and device updates</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
 
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="moon" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Theme</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Light, Dark or System</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
+            <MenuCard
+              icon="file-text"
+              title="Device Logs"
+              subtitle="Activity and event history"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Device logs coming soon')}
+            />
+            <MenuCard
+              icon="refresh-cw"
+              title="Firmware Updates"
+              subtitle="Keep devices up to date"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Firmware updates coming soon')}
+            />
+            <MenuCard
+              icon="wifi"
+              title="Network Settings"
+              subtitle="Wi-Fi and connectivity"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Network settings coming soon')}
+            />
+            <MenuCard
+              icon="help-circle"
+              title="Help & Support"
+              subtitle="FAQs and contact us"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Help & support coming soon')}
+            />
+          </Animated.View>
 
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="globe" size={20} color={theme.primary} />
+          {/* Account Section */}
+          <Animated.View entering={FadeInDown.delay(600)}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>ACCOUNT</Text>
             </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Language</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>English (Default)</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
 
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="eye" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>App Appearance</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Font size and display settings</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
-        </View>
+            <MenuCard
+              icon="shield"
+              title="Privacy & Security"
+              subtitle="Password and data settings"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Privacy settings coming soon')}
+            />
+            <MenuCard
+              icon="file"
+              title="Terms & Policies"
+              subtitle="Legal and privacy documents"
+              theme={theme}
+              onPress={() => Alert.alert('Coming Soon', 'Terms & policies coming soon')}
+            />
+            <MenuCard
+              icon="log-out"
+              title="Logout"
+              subtitle=""
+              isDangerous
+              theme={theme}
+              onPress={handleLogout}
+            />
+          </Animated.View>
 
-        {/* Device & System Section */}
-        <View className="mb-6">
-          <Text className="text-xs font-bold mb-3 px-1" style={{ color: theme.textMuted, letterSpacing: 0.5 }}>DEVICE & SYSTEM</Text>
-          
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="file-text" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Device Logs</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Activity and event history</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
-
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="refresh-cw" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Firmware Updates</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Keep devices up to date</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
-
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="wifi" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Network Settings</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Wi-Fi and connectivity</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
-
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="help-circle" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Help & Support</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>FAQs and contact us</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Account Section */}
-        <View className="mb-6">
-          <Text className="text-xs font-bold mb-3 px-1" style={{ color: theme.textMuted, letterSpacing: 0.5 }}>ACCOUNT</Text>
-          
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="shield" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Privacy & Security</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Password and data settings</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
-
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.primarySoft }}>
-              <Icon name="file" size={20} color={theme.primary} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>Terms & Policies</Text>
-              <Text className="text-xs" style={{ color: theme.textMuted }}>Legal and privacy documents</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
-
-          <TouchableOpacity className="rounded-2xl px-4 py-3.5 mb-2 flex-row items-center gap-3" style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }} onPress={handleLogout}>
-            <View className="w-11 h-11 rounded-xl items-center justify-center" style={{ backgroundColor: theme.danger + '20' }}>
-              <Icon name="log-out" size={20} color={theme.danger} />
-            </View>
-            <View className="flex-1 gap-0.5">
-              <Text className="text-base font-semibold" style={{ color: theme.danger }}>Logout</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={theme.border} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Bottom Spacing */}
-        <View className="h-24" />
-      </ScrollView>
+          {/* Bottom Spacing */}
+          <View style={{ height: 120 }} />
+        </ScrollView>
       )}
+
+      {/* Bottom Navigation */}
+      <View
+        style={[
+          styles.bottomNav,
+          {
+            backgroundColor: theme.bottomNav,
+            paddingBottom: insets.bottom + 8,
+            borderTopColor: theme.border,
+          },
+        ]}
+      >
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('HomeMain')}>
+          <Icon name="home" size={20} color={theme.textSecondary} />
+          <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Home</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('AddDevice')}>
+          <View style={[styles.addButton, { backgroundColor: theme.primarySoft }]}>
+            <Icon name="plus" size={20} color={theme.primary} />
+          </View>
+          <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Add</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Profile')}>
+          <Icon name="user" size={20} color={theme.primary} />
+          <Text style={[styles.navLabel, { color: theme.primary }]}>Profile</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
+
+
+// Menu Card Component
+interface MenuCardProps {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  isDangerous?: boolean;
+  theme: any;
+  onPress: () => void;
+}
+
+const MenuCard: React.FC<MenuCardProps> = ({
+  icon,
+  title,
+  subtitle,
+  isDangerous = false,
+  theme,
+  onPress,
+}) => {
+  const iconColor = isDangerous ? theme.danger : theme.primary;
+  const iconBgColor = isDangerous ? theme.danger + '20' : theme.primarySoft;
+
+  return (
+    <Animated.View entering={FadeInUp}>
+      <TouchableOpacity
+        style={[
+          styles.menuCard,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
+        onPress={onPress}
+      >
+        <View style={[styles.menuIconBox, { backgroundColor: iconBgColor }]}>
+          <Icon name={icon} size={20} color={iconColor} />
+        </View>
+        <View style={styles.menuContent}>
+          <Text
+            style={[
+              styles.menuTitle,
+              { color: isDangerous ? theme.danger : theme.textPrimary },
+            ]}
+          >
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={[styles.menuSubtitle, { color: theme.textMuted }]}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+        <Icon name="chevron-right" size={20} color={theme.border} />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  errorIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -1,
+  },
+  profileCardWrapper: {
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  profileCard: {
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  profileCardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  userAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  profileInfo: {
+    flex: 1,
+    gap: 6,
+  },
+  profileName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  profileEmail: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  editButtonText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  statsCardWrapper: {
+    marginBottom: 24,
+  },
+  statsCard: {
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+  },
+  statsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  statsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statItem: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  sectionHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  sectionTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  menuCard: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+  },
+  menuIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuContent: {
+    flex: 1,
+    gap: 2,
+  },
+  menuTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  menuSubtitle: {
+    fontSize: 11,
+    fontWeight: '400',
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 6,
+    borderTopWidth: 1,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    gap: 3,
+  },
+  navLabel: {
+    fontSize: 9,
+    fontWeight: '500',
+  },
+  addButton: {
+    width: 38,
+    height: 30,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
 
 export default ProfileScreen;
