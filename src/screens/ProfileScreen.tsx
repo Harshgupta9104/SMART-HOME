@@ -15,6 +15,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import Icon from 'react-native-vector-icons/Feather';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useHome } from '../contexts/HomeContext';
 import { getUserProfile } from '../services/firebase/userProfileService';
 import { UserProfile } from '../types/userProfile';
 
@@ -22,6 +23,7 @@ const ProfileScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
   const { user } = useAuth();
+  const { activeHome, loadingState: homeLoadingState } = useHome();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -168,7 +170,9 @@ const ProfileScreen = ({ navigation }: any) => {
             <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <View style={styles.statsHeader}>
                 <Icon name="home" size={20} color={theme.primary} />
-                <Text style={[styles.statsTitle, { color: theme.textPrimary }]}>My Home</Text>
+                <Text style={[styles.statsTitle, { color: theme.textPrimary }]}>
+                  {homeLoadingState === 'loading' ? 'Loading home...' : activeHome?.name || 'My Home'}
+                </Text>
               </View>
               <View style={styles.statsGrid}>
                 <View style={[styles.statItem, { backgroundColor: theme.surface }]}>
