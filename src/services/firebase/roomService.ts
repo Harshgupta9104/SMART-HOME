@@ -116,7 +116,10 @@ export const getRoomsForHome = async (homeId: string): Promise<Room[]> => {
       return rooms;
     }
 
-    console.error('[RoomService] Failed to load rooms');
+    console.error('[RoomService] Failed to load rooms', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
     throw error;
   }
 };
