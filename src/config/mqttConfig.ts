@@ -56,7 +56,8 @@ export function getMQTTConfig(): MQTTAppConfig {
   const config: Partial<MQTTAppConfig> = { url, username, password, clientIdPrefix };
   validateMQTTConfig(config);
 
-  // Log sanitized config for debugging (no password)
+  // Log sanitized config for debugging (no credentials shown)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const maskPassword = (pwd: string): string => {
     if (!pwd) return '';
     return pwd.charAt(0) + '*'.repeat(pwd.length - 1);
@@ -64,8 +65,7 @@ export function getMQTTConfig(): MQTTAppConfig {
 
   console.log('[MQTT Config] Configuration loaded:', {
     url: url ? url.substring(0, 50) + '...' : '[missing]',
-    username: username ? username.substring(0, 3) + '****' : '[missing]',
-    password: password ? maskPassword(password) : '[missing]',
+    // Do not log username or password, even partially masked
     clientIdPrefix,
   });
 
