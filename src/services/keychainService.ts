@@ -6,22 +6,27 @@ const SAVED_NETWORKS_KEY = '@SmartHome_SavedNetworks';
 
 export interface SavedNetwork {
   ssid: string;
-  password: string;
   savedAt: string;
 }
 
+/**
+ * Get per-SSID Keychain service identifier for isolated password storage
+ */
+const getNetworkKeychainService = (ssid: string): string =>
+  `${KEYCHAIN_SERVICE}:${encodeURIComponent(ssid)}`;
+
 class KeychainService {
   /**
-   * Save WiFi credentials securely
+   * Save WiFi credentials securely (password in per-SSID Keychain, metadata in AsyncStorage)
    */
   async saveCredentials(ssid: string, password: string): Promise<void> {
     try {
-      // Save to Keychain
+      // Save password to per-SSID Keychain service (isolated encryption)
       await Keychain.setGenericPassword(ssid, password, {
-        service: KEYCHAIN_SERVICE,
+        service: getNetworkKeychainService(ssid),
       });
 
-      // Also save metadata to AsyncStorage
+      // Save metadata only to AsyncStorage (no password)
       const networks = await this.getSavedNetworks();
       const existingIndex = networks.findIndex(n => n.ssid === ssid);
 
@@ -30,7 +35,6 @@ class KeychainService {
       } else {
         networks.push({
           ssid,
-          password,
           savedAt: new Date().toISOString(),
         });
       }
@@ -44,7 +48,7 @@ class KeychainService {
   }
 
   /**
-   * Get all saved networks
+   * Get all saved networks (migrates old AsyncStorage records if needed)
    */
   async getSavedNetworks(): Promise<SavedNetwork[]> {
     try {
@@ -54,9 +58,32 @@ class KeychainService {
         return [];
       }
 
-      const networks = JSON.parse(data) as SavedNetwork[];
-      console.log('[Keychain] Retrieved saved networks:', networks.length);
-      return networks;
+      // Parse raw data
+      const rawNetworks = JSON.parse(data) as unknown[];
+      let needsMigration = false;
+
+      // Clean up any old records that still have passwords
+      const cleanedNetworks: SavedNetwork[] = rawNetworks.map(network => {
+        const net = network as Record<string, unknown>;
+        if ('password' in net) {
+          needsMigration = true;
+          // Remove password field, preserve ssid and savedAt
+          return {
+            ssid: String(net.ssid),
+            savedAt: String(net.savedAt),
+          } as SavedNetwork;
+        }
+        return network as unknown as SavedNetwork;
+      });
+
+      // If migration occurred, save cleaned records back
+      if (needsMigration) {
+        console.log('[Keychain] Migrating saved networks: removing plaintext passwords from AsyncStorage');
+        await AsyncStorage.setItem(SAVED_NETWORKS_KEY, JSON.stringify(cleanedNetworks));
+      }
+
+      console.log('[Keychain] Retrieved saved networks:', cleanedNetworks.length);
+      return cleanedNetworks;
     } catch (error) {
       console.error('[Keychain] Error getting saved networks:', error);
       return [];
@@ -64,16 +91,18 @@ class KeychainService {
   }
 
   /**
-   * Get password for a saved network
+   * Get password for a saved network (reads from per-SSID Keychain only)
    */
   async getPassword(ssid: string): Promise<string | null> {
     try {
-      const networks = await this.getSavedNetworks();
-      const network = networks.find(n => n.ssid === ssid);
+      // Read password from per-SSID Keychain service only
+      const credentials = await Keychain.getGenericPassword({
+        service: getNetworkKeychainService(ssid),
+      });
 
-      if (network) {
+      if (credentials && credentials.username === ssid) {
         console.log('[Keychain] Retrieved password for:', ssid);
-        return network.password;
+        return credentials.password;
       }
 
       return null;
@@ -84,13 +113,21 @@ class KeychainService {
   }
 
   /**
-   * Remove saved credentials for a network
+   * Remove saved credentials for a specific network
    */
   async removeCredentials(ssid: string): Promise<void> {
     try {
-      // Note: react-native-keychain doesn't support selective deletion
-      // This is a limitation of the library
-      console.log('[Keychain] Credentials for', ssid, 'should be removed manually');
+      // Remove per-SSID Keychain entry
+      await Keychain.resetGenericPassword({
+        service: getNetworkKeychainService(ssid),
+      });
+
+      // Remove from AsyncStorage metadata
+      const networks = await this.getSavedNetworks();
+      const filteredNetworks = networks.filter(n => n.ssid !== ssid);
+      await AsyncStorage.setItem(SAVED_NETWORKS_KEY, JSON.stringify(filteredNetworks));
+
+      console.log('[Keychain] Credentials removed for:', ssid);
     } catch (error) {
       console.error('[Keychain] Error removing credentials:', error);
       throw error;
@@ -102,9 +139,19 @@ class KeychainService {
    */
   async clearAllCredentials(): Promise<void> {
     try {
-      await Keychain.resetGenericPassword({
-        service: KEYCHAIN_SERVICE,
-      });
+      // Load all saved networks first
+      const networks = await this.getSavedNetworks();
+
+      // Remove each per-SSID Keychain service
+      for (const network of networks) {
+        await Keychain.resetGenericPassword({
+          service: getNetworkKeychainService(network.ssid),
+        });
+      }
+
+      // Remove AsyncStorage saved networks key
+      await AsyncStorage.removeItem(SAVED_NETWORKS_KEY);
+
       console.log('[Keychain] All credentials cleared');
     } catch (error) {
       console.error('[Keychain] Error clearing credentials:', error);

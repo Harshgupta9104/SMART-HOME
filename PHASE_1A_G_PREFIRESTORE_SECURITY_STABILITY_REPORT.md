@@ -408,6 +408,67 @@ const password = credentials.password; // Encrypted in Keychain
 
 ---
 
+## Phase 1A-G-FIX: GitHub Verification & Additional Fixes
+
+**Date:** June 26, 2026  
+**Trigger:** GitHub verification identified remaining blockers  
+**Status:** ✅ **FIXED & VERIFIED**
+
+### Issues Found & Fixed
+
+#### 1. ✅ keychainService.ts - Per-SSID Keychain Implementation Completed
+**Blocker:** Service still stored WiFi passwords in AsyncStorage instead of per-SSID Keychain.
+
+**Fixes Applied:**
+- Removed `password` field from SavedNetwork interface
+- Implemented `getNetworkKeychainService(ssid)` helper for per-SSID isolation
+- Updated `saveCredentials()` to store password in per-SSID Keychain only
+- Updated `getPassword()` to read from per-SSID Keychain only (not AsyncStorage)
+- Updated `removeCredentials()` to remove specific SSID's Keychain entry AND AsyncStorage metadata
+- Updated `clearAllCredentials()` to iterate each SSID and remove all per-SSID Keychain entries
+- Added migration logic to clean old AsyncStorage records that still have passwords
+
+**Result:** ✅ WiFi passwords now stored exclusively in encrypted Keychain with per-SSID isolation.
+
+#### 2. ✅ RootNavigator.tsx - Authenticated MQTT Runtime Added
+**Blocker:** MQTT was removed from App.tsx startup but was not added behind authenticated state.
+
+**Fixes Applied:**
+- Added imports: `getMQTTService`, `getNotificationService`, `getMQTTConfig`
+- Created `useEffect` that depends on `isAuthenticated`
+- When `isAuthenticated === false`: Disconnect MQTT immediately
+- When `isAuthenticated === true`: Initialize notification service, then MQTT service
+- Generate unique clientId for each connection
+- Connect to MQTT with config validation
+- Cleanup function disconnects MQTT on unmount or logout
+- Safe error handling without logging credentials
+
+**Result:** ✅ MQTT now initializes only after user authentication and disconnects on logout.
+
+#### 3. ✅ mqttService.ts - Broker URL Logging Removed
+**Blocker:** MQTT service still logged broker URL after connection.
+
+**Fixes Applied:**
+- Removed line: `console.log('[MQTT] URL:', config.url);`
+- Verified no other credential logs (username, password)
+- Safe logs preserved: connection status, topic subscriptions, message delivery
+
+**Result:** ✅ Broker URL no longer exposed in logs.
+
+#### 4. ✅ Phase 0 Obsolete Docs Deleted
+**Files Removed:**
+- `PHASE_0A_AUDIT_REPORT.md` — Early baseline audit (superseded by Phase 1A)
+- `PHASE_0B_PACKAGE_SCRIPTS_REPORT.md` — Initial package scripts review
+- `PHASE_0C_LINT_BASELINE_REPORT.md` — Initial lint baseline
+- `PHASE_0C1_LINT_COMPLETION_REPORT.md` — Lint completion (superseded by Phase 1A)
+- `PHASE_0D_ANDROID_BUILD_BASELINE_REPORT.md` — Initial Android build baseline
+- `PHASE_0E_ANDROID_RUNTIME_SMOKE_TEST_REPORT.md` — Initial runtime test
+- `PHASE_0E_FINAL_VERIFICATION.md` — Phase 0 final check
+
+**Result:** ✅ 7 obsolete Phase 0 docs removed. Kept current architecture/tech docs in `.kiro/steering/`.
+
+---
+
 ## Deployment Readiness
 
 ### ✅ Ready for Phase 2A
