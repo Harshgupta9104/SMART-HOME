@@ -12,6 +12,7 @@ import { StyleSheet } from 'react-native';
 import { BleProvider } from './src/context/BleContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { HomeProvider } from './src/contexts/HomeContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { checkFirebaseRuntime } from './src/services/firebase/firebaseRuntimeCheck';
 
@@ -40,9 +41,11 @@ function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
-            <BleProvider>
-              <RootNavigator />
-            </BleProvider>
+            <HomeProvider>
+              <BleProvider>
+                <RootNavigator />
+              </BleProvider>
+            </HomeProvider>
           </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>
