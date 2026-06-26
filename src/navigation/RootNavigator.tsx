@@ -20,6 +20,9 @@ import { AuthWelcomeScreen, LoginScreen, SignupScreen, ForgotPasswordScreen } fr
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getNavigationTheme } from '../theme/theme';
+import { getMQTTService } from '../services/mqttService';
+import { getNotificationService } from '../services/notificationService';
+import { getMQTTConfig } from '../config/mqttConfig';
 
 const Stack = createNativeStackNavigator();
 
@@ -36,6 +39,65 @@ const RootNavigator = () => {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // Initialize authenticated runtime (MQTT, notifications) when user logs in/out
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeAuthenticatedRuntime = async () => {
+      // If not authenticated, disconnect MQTT and return
+      if (!isAuthenticated) {
+        getMQTTService().disconnect();
+        return;
+      }
+
+      try {
+        // Initialize notification service
+        await getNotificationService().initialize();
+
+        // Initialize MQTT service
+        const mqttService = getMQTTService();
+        await mqttService.initialize();
+
+        // Get MQTT config
+        const mqttConfigBase = getMQTTConfig();
+
+        // Check if config is complete (without logging credentials)
+        if (!mqttConfigBase.url || !mqttConfigBase.username || !mqttConfigBase.password) {
+          console.warn('[RootNavigator] MQTT config incomplete. MQTT features may be unavailable.');
+          return;
+        }
+
+        // Create full config with unique client ID
+        const mqttConfig = {
+          url: mqttConfigBase.url,
+          username: mqttConfigBase.username,
+          password: mqttConfigBase.password,
+          clientId: `${mqttConfigBase.clientIdPrefix}-${Date.now()}-${Math.random()
+            .toString(16)
+            .slice(2)}`,
+        };
+
+        // Connect to MQTT
+        const connected = await mqttService.connect(mqttConfig);
+
+        if (isMounted && connected) {
+          console.log('[RootNavigator] MQTT runtime connected');
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error('[RootNavigator] Error initializing authenticated runtime:', error);
+        }
+      }
+    };
+
+    initializeAuthenticatedRuntime();
+
+    return () => {
+      isMounted = false;
+      getMQTTService().disconnect();
+    };
+  }, [isAuthenticated]);
 
   // Show loading screen while both local loading and Firebase auth are initializing
   if (isLoading || loadingState === 'initializing') {

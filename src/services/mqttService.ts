@@ -55,7 +55,6 @@ class MqttService {
 
         this.client.on('connect', () => {
           console.log('[MQTT] ✅ Connected to HiveMQ successfully!');
-          console.log('[MQTT] URL:', config.url);
           this.isConnected = true;
           this.connectCallbacks.forEach(cb => cb());
           resolve(true);
