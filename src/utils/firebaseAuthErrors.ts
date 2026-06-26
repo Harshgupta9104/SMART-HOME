@@ -4,10 +4,7 @@
  * Does not expose internal details, API keys, or technical information
  */
 
-export const getFirebaseAuthErrorMessage = (
-  errorCode?: string,
-  fallbackMessage?: string,
-): string => {
+export const getFirebaseAuthErrorMessage = (errorCode?: string): string => {
   switch (errorCode) {
     case 'auth/invalid-email':
       return 'Enter a valid email address.';
@@ -42,6 +39,6 @@ export const getFirebaseAuthErrorMessage = (
       return 'Password is required.';
 
     default:
-      return fallbackMessage || 'Something went wrong. Please try again.';
+      return 'Something went wrong. Please try again.';
   }
 };

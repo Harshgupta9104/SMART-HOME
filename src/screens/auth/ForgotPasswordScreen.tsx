@@ -21,6 +21,8 @@ type ForgotPasswordScreenProps = {
   navigation: any;
 };
 
+type StatusType = 'success' | 'error';
+
 const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation }) => {
   const theme = useTheme();
   const { sendPasswordReset } = useAuth();
@@ -28,7 +30,8 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [generalError, setGeneralError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<StatusType | null>(null);
 
   const validateForm = (): boolean => {
     const emailErr = validateEmail(email);
@@ -37,7 +40,8 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
   };
 
   const handleSendReset = async () => {
-    setGeneralError(null);
+    setStatusMessage(null);
+    setStatusType(null);
 
     if (!validateForm()) {
       return;
@@ -49,22 +53,16 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
       const result = await sendPasswordReset(normalizeEmail(email));
 
       if (result.ok) {
-        setGeneralError(null);
-        console.log('[ForgotPasswordScreen] Password reset email sent', {
-          email: normalizeEmail(email),
-        });
-        // Show success message
-        setGeneralError('Password reset email sent. Check your inbox.');
+        setStatusMessage('Password reset email sent. Check your inbox.');
+        setStatusType('success');
       } else {
-        const userMessage = getFirebaseAuthErrorMessage(
-          result.errorCode,
-          result.errorMessage,
-        );
-        setGeneralError(userMessage);
+        const userMessage = getFirebaseAuthErrorMessage(result.errorCode);
+        setStatusMessage(userMessage);
+        setStatusType('error');
       }
-    } catch (error) {
-      setGeneralError('An unexpected error occurred. Please try again.');
-      console.error('[ForgotPasswordScreen] Password reset error:', error);
+    } catch {
+      setStatusMessage('An unexpected error occurred. Please try again.');
+      setStatusType('error');
     } finally {
       setIsLoading(false);
     }
@@ -111,14 +109,16 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
             </View>
 
             {/* General Error */}
-            {generalError && (
+            {statusMessage && (
               <Text
                 style={[
-                  styles.generalError,
-                  { color: generalError.includes('validated') ? colors.success : colors.danger },
+                  styles.statusMessage,
+                  {
+                    color: statusType === 'success' ? colors.success : colors.danger,
+                  },
                 ]}
               >
-                {generalError}
+                {statusMessage}
               </Text>
             )}
 
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     letterSpacing: 0.3,
   },
-  generalError: {
+  statusMessage: {
     fontSize: 13,
     fontWeight: '500',
     marginBottom: 16,
