@@ -22,7 +22,7 @@ import { UserProfile } from '../types/userProfile';
 const ProfileScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { activeHome, loadingState: homeLoadingState } = useHome();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,9 +75,18 @@ const ProfileScreen = ({ navigation }: any) => {
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: () => {
-        // Handle logout logic here
-      }},
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+          } catch {
+            console.error('[ProfileScreen] Logout failed');
+            Alert.alert('Error', 'Failed to logout. Please try again.');
+          }
+        },
+      },
     ]);
   };
 
