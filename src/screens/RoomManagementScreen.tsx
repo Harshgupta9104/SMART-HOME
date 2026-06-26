@@ -14,8 +14,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import DraggableFlatList from 'react-native-draggable-flatlist';
-import { getStorageService, ProvisionedDevice, RoomSortMode } from '../services/storageService';
+import { getStorageService, ProvisionedDevice } from '../services/storageService';
 import { useTheme } from '../context/ThemeContext';
+import { useRoom } from '../contexts/RoomContext';
+import { Room } from '../types/room';
 
 // Constants
 const ROOM_ALL = 'All rooms';
@@ -34,6 +36,7 @@ const getDevicesForRoom = (
 interface RoomItem {
   id: string;
   name: string;
+  icon: string;
   deviceCount: number;
   devices: ProvisionedDevice[];
 }
@@ -41,64 +44,24 @@ interface RoomItem {
 const RoomManagementScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
-  const [rooms, setRooms] = useState<RoomItem[]>([]);
+  const { rooms: firestoreRooms, loadingState: roomLoadingState, createNewRoom, updateExistingRoom, archiveExistingRoom } = useRoom();
+  const [roomItems, setRoomItems] = useState<RoomItem[]>([]);
   const [draftRooms, setDraftRooms] = useState<RoomItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [editingRoom, setEditingRoom] = useState<string | null>(null);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
   const [newRoomName, setNewRoomName] = useState('');
-  const [sortMode, setSortMode] = useState<RoomSortMode>('custom');
+  const [sortMode, setSortMode] = useState<'name_asc' | 'name_desc' | 'device_count_asc' | 'device_count_desc' | 'custom'>('custom');
   const [isReorderMode, setIsReorderMode] = useState(false);
-  const [previousSortMode, setPreviousSortMode] = useState<RoomSortMode>('custom');
   const [showSortSheet, setShowSortSheet] = useState(false);
   const [showAddRoomSheet, setShowAddRoomSheet] = useState(false);
   const [addRoomName, setAddRoomName] = useState('');
 
   const storageService = getStorageService();
 
-  const loadData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const savedRooms = await storageService.getRooms();
-      const savedDevices = await storageService.getProvisionedDevices();
-      const savedSortMode = await storageService.getRoomSortMode();
-
-      setSortMode(savedSortMode);
-
-      // Filter out "All rooms" and "Unassigned" (pseudo-rooms)
-      const realRooms = savedRooms.filter(
-        r => normalizeRoomName(r) !== normalizeRoomName(ROOM_ALL) &&
-             normalizeRoomName(r) !== normalizeRoomName(ROOM_UNASSIGNED)
-      );
-
-      const roomsWithDevices: RoomItem[] = realRooms.map((name) => {
-        const devicesInRoom = getDevicesForRoom(name, savedDevices);
-        return {
-          id: normalizeRoomName(name),
-          name,
-          deviceCount: devicesInRoom.length,
-          devices: devicesInRoom,
-        };
-      });
-
-      // Apply sorting based on saved sort mode
-      const sortedRooms = applySort(roomsWithDevices, savedSortMode);
-      setRooms(sortedRooms);
-      setDraftRooms(sortedRooms);
-    } catch (error) {
-      console.error('[RoomManagement] Error loading data:', error);
-      Alert.alert('Error', 'Failed to load rooms');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [storageService]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const applySort = (
+  // Helper function for sorting (stable, no dependencies)
+  const applySort = useCallback((
     roomList: RoomItem[],
-    mode: RoomSortMode
+    mode: typeof sortMode
   ): RoomItem[] => {
     const copy = [...roomList];
 
@@ -125,61 +88,80 @@ const RoomManagementScreen = ({ navigation }: any) => {
       default:
         return copy;
     }
-  };
+  }, []);
 
-  const handleSort = async (mode: RoomSortMode) => {
+  // Load room items from Firestore rooms and local devices
+  const loadData = useCallback(async () => {
+    try {
+      // Get local devices for counts (read-only, Phase 2D will migrate to cloud)
+      const savedDevices = await storageService.getProvisionedDevices();
+
+      // Convert Firestore rooms to RoomItem for display
+      const roomsWithDevices: RoomItem[] = firestoreRooms.map((room: Room) => {
+        const devicesInRoom = getDevicesForRoom(room.name, savedDevices);
+        return {
+          id: room.id,
+          name: room.name,
+          icon: room.icon,
+          deviceCount: devicesInRoom.length,
+          devices: devicesInRoom,
+        };
+      });
+
+      // Apply in-memory sort
+      const sortedRooms = applySort(roomsWithDevices, sortMode);
+      setRoomItems(sortedRooms);
+      setDraftRooms(sortedRooms);
+    } catch {
+      console.error('[RoomManagement] Failed to load data');
+      Alert.alert('Error', 'Failed to load rooms');
+    }
+  }, [firestoreRooms, sortMode, storageService, applySort]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    // Trigger load when room loading state changes
+    if (roomLoadingState === 'ready' || roomLoadingState === 'error') {
+      loadData();
+    }
+  }, [roomLoadingState, loadData]);
+
+  const handleSort = (mode: typeof sortMode) => {
     try {
       setShowSortSheet(false);
 
       if (mode === 'custom') {
-        // Enter reorder mode - store previous sort mode but do NOT set sortMode yet
-        setPreviousSortMode(sortMode);
-        setDraftRooms([...rooms]);
+        // Enter reorder mode
+        setSortMode(mode);
+        setDraftRooms([...roomItems]);
         setIsReorderMode(true);
       } else {
-        // Apply sort immediately
+        // Apply sort immediately (in-memory only, no cloud persistence)
         setSortMode(mode);
-        const sorted = applySort([...rooms], mode);
-        setRooms(sorted);
+        const sorted = applySort([...roomItems], mode);
+        setRoomItems(sorted);
         setDraftRooms(sorted);
-
-        // Save sort mode and new order
-        await storageService.saveRoomSortMode(mode);
-        await storageService.saveRooms(sorted.map(r => r.name));
       }
-    } catch (error) {
-      console.error('[RoomManagement] Error sorting rooms:', error);
+    } catch {
+      console.error('[RoomManagement] Failed to apply sort');
       Alert.alert('Error', 'Failed to sort rooms');
     }
   };
 
-  const handleSaveOrder = async () => {
+  const handleSaveOrder = () => {
     try {
       setIsLoading(true);
-      const roomNames = draftRooms.map(r => r.name);
-      console.log('[RoomManagement] Saving custom order:', roomNames);
-      
-      await storageService.saveRooms(roomNames);
-      
-      // Only set sortMode to 'custom' AFTER save succeeds
-      await storageService.saveRoomSortMode('custom');
-      setSortMode('custom');
-      
-      console.log('[RoomManagement] Custom order saved successfully');
-      
-      // Update rooms with new order
-      setRooms(draftRooms);
-      
-      // Exit reorder mode
+      // Option A: Sort modes are in-memory only for display
+      // No cloud persistence for sort order yet
+      setRoomItems(draftRooms);
       setIsReorderMode(false);
-      
-      // Close sort sheet if open
       setShowSortSheet(false);
-      
-      // Show success feedback
-      Alert.alert('Success', 'Room order saved successfully', [{ text: 'OK' }]);
-    } catch (error) {
-      console.error('[RoomManagement] Error saving order:', error);
+      Alert.alert('Success', 'Room order updated (local display only)', [{ text: 'OK' }]);
+    } catch {
+      console.error('[RoomManagement] Failed to save order');
       Alert.alert('Error', 'Failed to save room order');
     } finally {
       setIsLoading(false);
@@ -187,13 +169,12 @@ const RoomManagementScreen = ({ navigation }: any) => {
   };
 
   const handleCancelReorder = () => {
-    // Restore previous sort mode visually
-    setSortMode(previousSortMode);
-    setDraftRooms([...rooms]);
+    // Restore from roomItems without saving changes
+    setDraftRooms([...roomItems]);
     setIsReorderMode(false);
   };
 
-  const handleRenameRoom = async (oldName: string) => {
+  const handleRenameRoom = async (roomId: string, oldName: string) => {
     const trimmedName = newRoomName.trim();
 
     if (!trimmedName) {
@@ -207,12 +188,12 @@ const RoomManagementScreen = ({ navigation }: any) => {
     }
 
     if (trimmedName === oldName) {
-      setEditingRoom(null);
+      setEditingRoomId(null);
       return;
     }
 
     // Check for duplicate room names (case-insensitive)
-    const nameExists = rooms.some(
+    const nameExists = roomItems.some(
       r => normalizeRoomName(r.name) === normalizeRoomName(trimmedName) &&
            normalizeRoomName(r.name) !== normalizeRoomName(oldName)
     );
@@ -224,13 +205,14 @@ const RoomManagementScreen = ({ navigation }: any) => {
 
     try {
       setIsLoading(true);
-      await storageService.renameRoom(oldName, trimmedName);
-      setEditingRoom(null);
+      // Call Firestore room update through RoomContext
+      await updateExistingRoom(roomId, { name: trimmedName });
+      setEditingRoomId(null);
       setNewRoomName('');
-      await loadData();
-    } catch (error) {
-      console.error('[RoomManagement] Error renaming room:', error);
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to rename room');
+      // loadData will be triggered by Firestore subscription
+    } catch {
+      console.error('[RoomManagement] Failed to rename room');
+      Alert.alert('Error', 'Failed to rename room');
     } finally {
       setIsLoading(false);
     }
@@ -239,7 +221,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
   const handleDeleteRoom = async (room: RoomItem) => {
     Alert.alert(
       'Delete Room',
-      `Delete "${room.name}"? Devices in this room will be moved to "Unassigned".`,
+      `Delete "${room.name}"? Devices will remain but lose this room assignment.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -248,11 +230,12 @@ const RoomManagementScreen = ({ navigation }: any) => {
           onPress: async () => {
             try {
               setIsLoading(true);
-              await storageService.deleteRoom(room.name);
-              await loadData();
-            } catch (error) {
-              console.error('[RoomManagement] Error deleting room:', error);
-              Alert.alert('Error', error instanceof Error ? error.message : 'Failed to delete room');
+              // Archive room through Firestore RoomContext
+              await archiveExistingRoom(room.id);
+              // loadData will be triggered by Firestore subscription
+            } catch {
+              console.error('[RoomManagement] Failed to delete room');
+              Alert.alert('Error', 'Failed to delete room');
             } finally {
               setIsLoading(false);
             }
@@ -276,7 +259,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
     }
 
     // Check for duplicate room names (case-insensitive)
-    const nameExists = rooms.some(
+    const nameExists = roomItems.some(
       r => normalizeRoomName(r.name) === normalizeRoomName(trimmedName)
     );
 
@@ -287,13 +270,14 @@ const RoomManagementScreen = ({ navigation }: any) => {
 
     try {
       setIsLoading(true);
-      await storageService.addRoom(trimmedName);
+      // Create room through Firestore RoomContext
+      await createNewRoom(trimmedName);
       setAddRoomName('');
       setShowAddRoomSheet(false);
-      await loadData();
-    } catch (error) {
-      console.error('[RoomManagement] Error adding room:', error);
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to add room');
+      // loadData will be triggered by Firestore subscription
+    } catch {
+      console.error('[RoomManagement] Failed to add room');
+      Alert.alert('Error', 'Failed to add room');
     } finally {
       setIsLoading(false);
     }
@@ -368,7 +352,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
-      ) : rooms.length === 0 ? (
+      ) : roomItems.length === 0 ? (
         <ScrollView
           style={styles.content}
           contentContainerStyle={styles.emptyContainer}
@@ -383,7 +367,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
       ) : isReorderMode ? (
         <View style={styles.content}>
           <DraggableFlatList
-            data={draftRooms.length > 0 ? draftRooms : rooms}
+            data={draftRooms.length > 0 ? draftRooms : roomItems}
             onDragEnd={({ data }) => setDraftRooms(data)}
             keyExtractor={(item) => item.id}
             renderItem={({ item, drag, isActive }) => (
@@ -432,12 +416,12 @@ const RoomManagementScreen = ({ navigation }: any) => {
           scrollEventThrottle={16}
           bounces={true}
         >
-          {rooms.map((room) => (
+          {roomItems.map((room) => (
             <View
               key={room.id}
               style={[styles.roomCard, { backgroundColor: theme.card, borderColor: theme.border }]}
             >
-              {editingRoom === room.name ? (
+              {editingRoomId === room.id ? (
                 // Edit Mode
                 <View style={styles.editContainer}>
                   <TextInput
@@ -458,7 +442,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
                   />
                   <TouchableOpacity
                     style={[styles.editButton, { backgroundColor: theme.success }]}
-                    onPress={() => handleRenameRoom(room.name)}
+                    onPress={() => handleRenameRoom(room.id, room.name)}
                     disabled={isLoading}
                   >
                     <Icon name="check" size={18} color="#FFFFFF" />
@@ -466,7 +450,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
                   <TouchableOpacity
                     style={[styles.editButton, { backgroundColor: theme.danger }]}
                     onPress={() => {
-                      setEditingRoom(null);
+                      setEditingRoomId(null);
                       setNewRoomName('');
                     }}
                     disabled={isLoading}
@@ -497,7 +481,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
                         { backgroundColor: theme.primarySoft, borderColor: theme.border },
                       ]}
                       onPress={() => {
-                        setEditingRoom(room.name);
+                        setEditingRoomId(room.id);
                         setNewRoomName(room.name);
                       }}
                       disabled={isLoading}
