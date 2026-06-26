@@ -16,6 +16,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useHome } from '../contexts/HomeContext';
+import { useRoom } from '../contexts/RoomContext';
 import { getUserProfile } from '../services/firebase/userProfileService';
 import { UserProfile } from '../types/userProfile';
 
@@ -24,6 +25,7 @@ const ProfileScreen = ({ navigation }: any) => {
   const { theme, isDark } = useTheme();
   const { user, signOut } = useAuth();
   const { activeHome, loadingState: homeLoadingState } = useHome();
+  const { rooms, loadingState: roomLoadingState } = useRoom();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +195,9 @@ const ProfileScreen = ({ navigation }: any) => {
                   <Text style={[styles.statLabel, { color: theme.textMuted }]}>Online</Text>
                 </View>
                 <View style={[styles.statItem, { backgroundColor: theme.surface }]}>
-                  <Text style={[styles.statValue, { color: theme.textPrimary }]}>0</Text>
+                  <Text style={[styles.statValue, { color: theme.textPrimary }]}>
+                    {roomLoadingState === 'loading' ? '...' : rooms.length}
+                  </Text>
                   <Text style={[styles.statLabel, { color: theme.textMuted }]}>Rooms</Text>
                 </View>
               </View>
