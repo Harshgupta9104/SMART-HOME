@@ -13,6 +13,7 @@ import {
   signInWithEmail,
   signOutUser,
 } from '../services/firebase/firebaseAuthService';
+import { createUserProfileIfMissing } from '../services/firebase/userProfileService';
 import {
   AppAuthUser,
   AuthLoadingState,
@@ -49,6 +50,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     const unsubscribe = onAuthUserChanged(nextUser => {
       setUser(nextUser);
+      
+      // Bootstrap profile creation if user just authenticated
+      if (nextUser) {
+        createUserProfileIfMissing({
+          uid: nextUser.uid,
+          email: nextUser.email,
+          displayName: nextUser.displayName,
+          photoURL: nextUser.photoURL,
+          phoneNumber: nextUser.phoneNumber,
+        }).catch(() => {
+          // Log error but don't block auth flow
+          console.error('[AuthContext] Profile bootstrap failed');
+        });
+      }
+      
       setLoadingState('ready');
     });
 
