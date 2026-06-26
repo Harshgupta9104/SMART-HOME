@@ -272,7 +272,7 @@ User can now Sign In or Create Account
 
 ### ✓ Signup Test
 - Tapped "Create Account" from AuthWelcome
-- Entered test email: `test@example.com`, password: `Test@12345`
+- Entered valid test email and password (used temporary development-only test credentials)
 - Tapped "Create Account"
 - **Result:** Success message displayed in green
 - Firebase Console → Authentication → Users: New user created
@@ -282,7 +282,7 @@ User can now Sign In or Create Account
 
 ### ✓ Login Test
 - Tapped "Sign In" from AuthWelcome
-- Entered test credentials
+- Entered same test credentials
 - Tapped "Sign In"
 - **Result:** Success message displayed in green
 - App auto-navigated to HomeMain
@@ -290,14 +290,14 @@ User can now Sign In or Create Account
 
 ### ✓ Forgot Password Test
 - From LoginScreen, tapped "Forgot password?"
-- Entered test email
+- Entered test email address
 - Tapped "Send Reset Link"
 - **Result:** Success message in green: "Password reset email sent. Check your inbox."
 - ✅ PASS
 
 ### ✓ Logout Test
 - While logged in, navigated to Settings
-- Found AuthSessionCard showing "Signed in as t***@example.com"
+- Found AuthSessionCard showing "Signed in as" with masked email
 - Tapped "Sign Out" button
 - **Result:** Loading spinner appeared, success message displayed in green
 - App auto-returned to AuthWelcome
@@ -318,9 +318,9 @@ User can now Sign In or Create Account
 - ✅ PASS
 
 ### Test Account Status
-- **Test credentials:** NOT committed
+- **Test credentials:** Intentionally not included in this report
 - **Temporary user:** Deleted from Firebase Console after testing
-- **No credentials in report:** Confirmed
+- **No specific credentials in report:** Confirmed
 
 ---
 
