@@ -26,6 +26,8 @@ type SignupScreenProps = {
   navigation: any;
 };
 
+type StatusType = 'success' | 'error';
+
 const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const theme = useTheme();
   const { createAccountWithEmail } = useAuth();
@@ -40,7 +42,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [generalError, setGeneralError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<StatusType | null>(null);
 
   const validateForm = (): boolean => {
     const emailErr = validateEmail(email);
@@ -55,7 +58,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   };
 
   const handleSignup = async () => {
-    setGeneralError(null);
+    setStatusMessage(null);
+    setStatusType(null);
 
     if (!validateForm()) {
       return;
@@ -67,24 +71,16 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
       const result = await createAccountWithEmail(normalizeEmail(email), password);
 
       if (result.ok) {
-        setGeneralError(null);
-        console.log('[SignupScreen] Account created successfully', {
-          userId: result.data?.uid,
-          email: result.data?.email,
-        });
-        // UI shows success, new user is now authenticated via AuthContext
-        // Name field is not saved to Firestore in this phase
-        // No global redirect here - user can navigate manually or auth gate can handle in Phase 1A-F
+        setStatusMessage('Account created successfully.');
+        setStatusType('success');
       } else {
-        const userMessage = getFirebaseAuthErrorMessage(
-          result.errorCode,
-          result.errorMessage,
-        );
-        setGeneralError(userMessage);
+        const userMessage = getFirebaseAuthErrorMessage(result.errorCode);
+        setStatusMessage(userMessage);
+        setStatusType('error');
       }
-    } catch (error) {
-      setGeneralError('An unexpected error occurred. Please try again.');
-      console.error('[SignupScreen] Signup error:', error);
+    } catch {
+      setStatusMessage('An unexpected error occurred. Please try again.');
+      setStatusType('error');
     } finally {
       setIsLoading(false);
     }
@@ -220,14 +216,16 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             </View>
 
             {/* General Error */}
-            {generalError && (
+            {statusMessage && (
               <Text
                 style={[
-                  styles.generalError,
-                  { color: generalError.includes('validated') ? colors.success : colors.danger },
+                  styles.statusMessage,
+                  {
+                    color: statusType === 'success' ? colors.success : colors.danger,
+                  },
                 ]}
               >
-                {generalError}
+                {statusMessage}
               </Text>
             )}
 
@@ -323,7 +321,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     letterSpacing: 0.3,
   },
-  generalError: {
+  statusMessage: {
     fontSize: 13,
     fontWeight: '500',
     marginBottom: 16,

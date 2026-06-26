@@ -21,6 +21,8 @@ type LoginScreenProps = {
   navigation: any;
 };
 
+type StatusType = 'success' | 'error';
+
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const theme = useTheme();
   const { signInWithEmail } = useAuth();
@@ -31,7 +33,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [generalError, setGeneralError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<StatusType | null>(null);
 
   const validateForm = (): boolean => {
     const emailErr = validateEmail(email);
@@ -44,7 +47,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   const handleLogin = async () => {
-    setGeneralError(null);
+    setStatusMessage(null);
+    setStatusType(null);
 
     if (!validateForm()) {
       return;
@@ -56,23 +60,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       const result = await signInWithEmail(normalizeEmail(email), password);
 
       if (result.ok) {
-        setGeneralError(null);
-        console.log('[LoginScreen] User signed in successfully', {
-          userId: result.data?.uid,
-          email: result.data?.email,
-        });
-        // UI shows success, user is now authenticated via AuthContext
-        // No global redirect here - user can navigate manually or auth gate can handle in Phase 1A-F
+        setStatusMessage('Signed in successfully.');
+        setStatusType('success');
       } else {
-        const userMessage = getFirebaseAuthErrorMessage(
-          result.errorCode,
-          result.errorMessage,
-        );
-        setGeneralError(userMessage);
+        const userMessage = getFirebaseAuthErrorMessage(result.errorCode);
+        setStatusMessage(userMessage);
+        setStatusType('error');
       }
-    } catch (error) {
-      setGeneralError('An unexpected error occurred. Please try again.');
-      console.error('[LoginScreen] Sign in error:', error);
+    } catch {
+      setStatusMessage('An unexpected error occurred. Please try again.');
+      setStatusType('error');
     } finally {
       setIsLoading(false);
     }
@@ -152,14 +149,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             </View>
 
             {/* General Error */}
-            {generalError && (
+            {statusMessage && (
               <Text
                 style={[
-                  styles.generalError,
-                  { color: generalError.includes('validated') ? colors.success : colors.danger },
+                  styles.statusMessage,
+                  {
+                    color: statusType === 'success' ? colors.success : colors.danger,
+                  },
                 ]}
               >
-                {generalError}
+                {statusMessage}
               </Text>
             )}
 
@@ -264,7 +263,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     letterSpacing: 0.3,
   },
-  generalError: {
+  statusMessage: {
     fontSize: 13,
     fontWeight: '500',
     marginBottom: 16,
