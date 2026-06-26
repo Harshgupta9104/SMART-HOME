@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { useTheme } from '../context/ThemeContext';
 import { AppThemeMode, AVAILABLE_THEMES } from '../theme/theme';
+import { AuthSessionCard } from '../components/auth';
 
 const SettingsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
@@ -60,6 +61,9 @@ const SettingsScreen = ({ navigation }: any) => {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Auth Session Card */}
+        <AuthSessionCard navigation={navigation} />
+
         {/* App Preferences */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>APP PREFERENCES</Text>
