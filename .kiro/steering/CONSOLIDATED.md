@@ -513,28 +513,106 @@ service cloud.firestore {
     
     // Users can read/write their own profile
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read, create, update: if request.auth != null
+        && request.auth.uid == userId;
+      allow delete: if false;
     }
     
-    // Users can read/write homes they belong to
+    // Homes and subcollections
     match /homes/{homeId} {
-      allow read: if request.auth.uid in resource.data.members;
-      allow write: if request.auth.uid == resource.data.owner;
-      
-      match /rooms/{roomId} {
-        allow read, write: if request.auth.uid in 
-          get(/databases/$(database)/documents/homes/$(homeId)).data.members;
+      function isSignedIn() {
+        return request.auth != null;
       }
-      
+
+      function memberDocPath() {
+        return /databases/$(database)/documents/homes/$(homeId)/members/$(request.auth.uid);
+      }
+
+      function isHomeMember() {
+        return isSignedIn()
+          && exists(memberDocPath())
+          && get(memberDocPath()).data.status == 'active';
+      }
+
+      function isHomeOwnerOrAdmin() {
+        return isHomeMember()
+          && get(memberDocPath()).data.role in ['owner', 'admin'];
+      }
+
+      allow read: if isHomeMember();
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.status == 'active';
+
+      allow update: if isHomeOwnerOrAdmin();
+      allow delete: if false;
+
+      // Members subcollection
+      match /members/{memberId} {
+        allow read: if isHomeMember();
+
+        allow create: if isSignedIn()
+          && memberId == request.auth.uid
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.role == 'owner'
+          && request.resource.data.status == 'active';
+
+        allow update: if isHomeOwnerOrAdmin();
+        allow delete: if false;
+      }
+
+      // Rooms subcollection
+      match /rooms/{roomId} {
+        allow read: if isHomeMember();
+
+        allow create: if isHomeOwnerOrAdmin()
+          && request.resource.data.homeId == homeId
+          && request.resource.data.status == 'active';
+
+        allow update: if isHomeOwnerOrAdmin()
+          && request.resource.data.homeId == homeId;
+
+        allow delete: if false;
+      }
+
+      // Devices subcollection (reserved for Phase 2D)
       match /devices/{deviceId} {
-        allow read, write: if request.auth.uid in 
-          get(/databases/$(database)/documents/homes/$(homeId)).data.members;
+        allow read: if isHomeMember();
+
+        allow create: if isHomeOwnerOrAdmin()
+          && request.resource.data.homeId == homeId
+          && request.resource.data.status == 'active';
+
+        allow update: if isHomeOwnerOrAdmin()
+          && request.resource.data.homeId == homeId;
+
+        allow delete: if false;
       }
     }
   }
 }
 ```
 
+### Firestore Rules Correction (Phase 2C-RULES-FIX)
+
+The Firestore security rules were corrected to match the actual database model:
+
+**Wrong model (previously documented):**
+- `homes/{homeId}.members` array field on home document
+- Check: `request.auth.uid in resource.data.members`
+
+**Actual model (implemented in Phase 2B):**
+- `homes/{homeId}/members/{uid}` subcollection with individual member documents
+- Each member document has: `uid`, `role` ('owner', 'admin', 'user'), `status` ('active', 'inactive')
+- Check: `exists(/databases/$(database)/documents/homes/$(homeId)/members/$(request.auth.uid))`
+
+**Key points:**
+- Do NOT add a members array field to `homes/{homeId}` documents
+- The subcollection `homes/{homeId}/members/{uid}` is the authoritative source of membership
+- Rules use helper functions (`isHomeMember()`, `isHomeOwnerOrAdmin()`) for clarity and security
+- Membership is checked by member document existence and active status
+- Owner/admin privileges are checked via the `role` field in the member document
 
 ---
 
