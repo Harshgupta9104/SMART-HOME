@@ -48,6 +48,10 @@ class DeviceDataService {
   // Phase 2J: Duplicate write prevention cache (key: "${homeId}:${cloudDeviceId}:relay_1")
   private channelStateCache: Map<string, 'on' | 'off' | 'unknown'> = new Map();
 
+  // Phase 2K: Device health cache for duplicate write prevention
+  // Key: "${homeId}:${cloudDeviceId}", Value: { status, lastWriteAt }
+  private deviceHealthCache: Map<string, { status: 'online' | 'offline' | 'unknown'; lastWriteAt: number }> = new Map();
+
   /**
    * Phase 2J: Register a cloud device link for MQTT → Firestore mapping
    * Called when a CloudDevice is loaded in DeviceContext
@@ -173,6 +177,9 @@ class DeviceDataService {
       // Update cache
       this.metricsCache.set(deviceId, metrics);
 
+      // Phase 2K: Mark device online when ANY MQTT message is received
+      this.markDeviceOnlineFromMQTT(deviceId);
+
       // Check for device status changes (online/offline)
       this.handleDeviceStatusChange(deviceId, data);
 
@@ -206,13 +213,14 @@ class DeviceDataService {
 
   /**
    * Handle device status changes (online/offline)
+   * Phase 2K: Now also syncs device health status to Firestore
    */
   private async handleDeviceStatusChange(deviceId: string, data: any): Promise<void> {
     const status = parseDeviceStatus(data);
     if (!status) return;
 
     const previousStatus = this.deviceStatusCache.get(deviceId);
-    
+
     if (previousStatus === status) return; // No change
 
     this.deviceStatusCache.set(deviceId, status);
@@ -237,6 +245,9 @@ class DeviceDataService {
         { deviceId, deviceName, source: 'mqtt' }
       );
     }
+
+    // Phase 2K: Sync device health to Firestore when status explicitly changes
+    await this.syncDeviceHealthToFirestore(deviceId, status);
   }
 
   /**
@@ -319,6 +330,93 @@ class DeviceDataService {
       console.error('[DeviceData] ❌ Failed to sync relay state to Firestore:', {
         mqttDeviceId,
         relayState,
+        error: (error as any)?.message,
+      });
+      // Don't throw — let MQTT listener continue
+    }
+  }
+
+  /**
+   * Phase 2K: Mark device as online when MQTT activity is detected
+   * Called whenever any MQTT message is received from the device
+   * Updates lastMqttMessageAt timestamp in Firestore
+   */
+  private async markDeviceOnlineFromMQTT(mqttDeviceId: string): Promise<void> {
+    try {
+      const link = this.getCloudDeviceLinkByMqttId(mqttDeviceId);
+      if (!link) {
+        // Local-only device, skip Firestore sync
+        return;
+      }
+
+      // Sync device health: mark online and update lastMqttMessageAt
+      await this.syncDeviceHealthToFirestore(mqttDeviceId, 'online');
+    } catch (error) {
+      console.error('[DeviceData] ❌ Failed to mark device online from MQTT:', {
+        mqttDeviceId,
+        error: (error as any)?.message,
+      });
+      // Don't throw — let MQTT listener continue
+    }
+  }
+
+  /**
+   * Phase 2K: Sync device health status to Firestore
+   * Updates device.status and device.lastSeenAt/lastMqttMessageAt
+   *
+   * Implements duplicate write prevention:
+   * - If status unchanged and last write < 30 seconds ago, skip
+   * - Always allow write when status changes
+   *
+   * @param mqttDeviceId - MQTT device ID
+   * @param status - Device status (online, offline, unknown)
+   */
+  private async syncDeviceHealthToFirestore(
+    mqttDeviceId: string,
+    status: 'online' | 'offline' | 'unknown'
+  ): Promise<void> {
+    try {
+      const link = this.getCloudDeviceLinkByMqttId(mqttDeviceId);
+      if (!link) {
+        console.log('[DeviceData] No cloud device link found for MQTT device:', mqttDeviceId);
+        return; // Local-only device, skip Firestore sync
+      }
+
+      // Check duplicate write prevention cache
+      const cacheKey = `${link.homeId}:${link.cloudDeviceId}`;
+      const cachedHealth = this.deviceHealthCache.get(cacheKey);
+      const now = Date.now();
+
+      if (cachedHealth && cachedHealth.status === status && (now - cachedHealth.lastWriteAt) < 30000) {
+        console.log('[DeviceData] Device health unchanged, skipping write:', { status, device: link.cloudDeviceId });
+        return;
+      }
+
+      console.log('[DeviceData] 📡 Syncing device health to Firestore:', {
+        homeId: link.homeId,
+        cloudDeviceId: link.cloudDeviceId,
+        status,
+      });
+
+      // Build update object with current timestamp
+      const now_iso = new Date().toISOString();
+      const updates: any = {
+        status,
+        lastSeenAt: now_iso,
+        updatedAt: now_iso,
+      };
+
+      // Update Firestore device document
+      await deviceService.updateCloudDevice(link.homeId, link.cloudDeviceId, updates);
+
+      // Update cache to prevent duplicate writes
+      this.deviceHealthCache.set(cacheKey, { status, lastWriteAt: now });
+
+      console.log('[DeviceData] ✅ Device health synced to Firestore:', status);
+    } catch (error) {
+      console.error('[DeviceData] ❌ Failed to sync device health to Firestore:', {
+        mqttDeviceId,
+        status,
         error: (error as any)?.message,
       });
       // Don't throw — let MQTT listener continue
