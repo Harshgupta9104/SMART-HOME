@@ -6,39 +6,72 @@ import {
   TouchableOpacity,
   Animated,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { ProvisionedDevice } from '../services/storageService';
+import { CloudDevice, DeviceChannel } from '../types/device';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 import { useTheme } from '../context/ThemeContext';
-
+import { useDevice } from '../contexts/DeviceContext';
 interface ControllerScreenProps {
-  device: ProvisionedDevice;
+  device: ProvisionedDevice | CloudDevice;
 }
-
 const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
   const { theme } = useTheme();
+  const { getChannelsForDeviceFromContext, refreshChannelsForDevice } = useDevice();
   const [relayStatus, setRelayStatus] = useState(false);
   const [isUpdatingRelay, setIsUpdatingRelay] = useState(false);
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null);
-
+  const [channels, setChannels] = useState<DeviceChannel[]>([]);
+  const [loadingChannels, setLoadingChannels] = useState(false);
   // Animations
   const glowAnim = useRef(new Animated.Value(0)).current;       // pulsing glow radius
   const scaleAnim = useRef(new Animated.Value(1)).current;      // press scale
   const glowLoop = useRef<Animated.CompositeAnimation | null>(null);
-
   const deviceDataService = getDeviceDataService();
-
+  // Get device ID for both ProvisionedDevice and CloudDevice
+  const getDeviceId = () => {
+    if ((device as CloudDevice).mqttDeviceId) {
+      return (device as CloudDevice).mqttDeviceId || (device as CloudDevice).localDeviceId;
+    }
+    return device.id;
+  };
   // Subscribe to real MQTT state — UI always reflects device truth
   useEffect(() => {
     if (!device) return;
-    const mqttDeviceId = device.mqttDeviceId || device.id;
+    const mqttDeviceId = getDeviceId();
     const unsubscribe = deviceDataService.subscribe(mqttDeviceId, (newMetrics: DeviceMetrics) => {
       setMetrics(newMetrics);
       setRelayStatus(newMetrics.relayStatus || false);
     });
     return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device, deviceDataService]);
-
+  // Load cloud channels if this is a CloudDevice
+  useEffect(() => {
+    const loadChannels = async () => {
+      // Check if device is CloudDevice and has channels
+      const cloudDevice = device as CloudDevice;
+      if (cloudDevice.id && cloudDevice.channelCount) {
+        setLoadingChannels(true);
+        try {
+          // Try to get cached channels from context
+          let cachedChannels = getChannelsForDeviceFromContext(cloudDevice.id);
+          if (!cachedChannels || cachedChannels.length === 0) {
+            // Refresh from Firestore if not cached
+            cachedChannels = await refreshChannelsForDevice(cloudDevice.id);
+          }
+          setChannels(cachedChannels);
+        } catch (err) {
+          console.error('[ControllerScreen] Failed to load channels:', err);
+          setChannels([]);
+        } finally {
+          setLoadingChannels(false);
+        }
+      }
+    };
+    loadChannels();
+  }, [device, getChannelsForDeviceFromContext, refreshChannelsForDevice]);
   // Pulsing glow when relay is OFF (inverted logic)
   useEffect(() => {
     if (!relayStatus) {  // ← Changed from "if (relayStatus)" to "if (!relayStatus)"
@@ -54,44 +87,34 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       Animated.timing(glowAnim, { toValue: 0, duration: 400, useNativeDriver: false }).start();
     }
   }, [relayStatus, glowAnim]);
-
   const handleRelayPress = async () => {
     if (isUpdatingRelay) return;
-
     // Press scale animation
     Animated.sequence([
       Animated.timing(scaleAnim, { toValue: 0.93, duration: 100, useNativeDriver: true }),
       Animated.timing(scaleAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
     ]).start();
-
     setIsUpdatingRelay(true);
-
     try {
-      const mqttDeviceId = device.mqttDeviceId || device.id;
+      const mqttDeviceId = getDeviceId();
       const newState = !relayStatus;
-      
       console.log('[Controller] Sending relay command:', newState ? 'ON' : 'OFF');
-      
       // Send command and wait for MQTT response
       const success = await deviceDataService.updateRelayStatus(mqttDeviceId, newState);
-      
       if (!success) {
         console.warn('[Controller] Relay command failed');
         setIsUpdatingRelay(false);
         return;
       }
-      
       // Wait max 2 seconds for response, then unlock button
       setTimeout(() => {
         setIsUpdatingRelay(false);
       }, 2000);
-      
     } catch (error) {
       console.error('[Controller] Error updating relay:', error);
       setIsUpdatingRelay(false);
     }
   };
-
   // Interpolated glow values (not useNativeDriver — shadow props)
   const glowRadius = glowAnim.interpolate({
     inputRange: [0, 1],
@@ -105,16 +128,69 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
     inputRange: [0, 1],
     outputRange: [0, 1],
   });
-
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Relay Control Card */}
-      <View style={styles.controlCard}>
-
+      {/* Show channel list for CloudDevice, or single relay for ProvisionedDevice */}
+      {channels.length > 0 ? (
+        // Multi-relay UI from cloud channels
+        <View>
+          <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>RELAYS ({channels.length})</Text>
+          {channels.map((channel) => (
+            <View key={channel.id} style={[styles.channelCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={styles.channelHeader}>
+                <View style={styles.channelInfo}>
+                  <Text style={[styles.channelName, { color: theme.textPrimary }]}>
+                    {channel.name || `Relay ${channel.channelNumber}`}
+                  </Text>
+                  <Text style={[styles.channelNumber, { color: theme.textSecondary }]}>
+                    Channel {channel.channelNumber}
+                  </Text>
+                </View>
+                <View style={[styles.stateBadge, {
+                  backgroundColor: channel.state === 'on' ? theme.success : channel.state === 'off' ? theme.danger : theme.warning
+                }]}>
+                  <Text style={[styles.stateBadgeText, { color: theme.background }]}>
+                    {channel.state === 'unknown' ? 'Unknown' : channel.state?.toUpperCase() || 'OFF'}
+                  </Text>
+                </View>
+              </View>
+              {channel.channelNumber === 1 ? (
+                // Relay 1 is controllable
+                <TouchableOpacity
+                  style={[styles.channelToggleButton, { backgroundColor: theme.primarySoft }]}
+                  onPress={handleRelayPress}
+                  disabled={isUpdatingRelay}
+                >
+                  <Text style={[styles.channelToggleText, { color: theme.primary }]}>
+                    {isUpdatingRelay ? 'Updating...' : `Turn ${relayStatus ? 'OFF' : 'ON'}`}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                // Other relays show coming soon
+                <View style={[styles.channelToggleButton, { backgroundColor: theme.background, opacity: 0.5 }]}>
+                  <Text style={[styles.channelToggleText, { color: theme.textMuted }]}>
+                    Coming Soon
+                  </Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      ) : loadingChannels ? (
+        // Loading indicator
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textMuted }]}>Loading channels...</Text>
+        </View>
+      ) : (
+        // Fallback to single relay UI (legacy ProvisionedDevice)
+        <View>
+          {/* Relay Control Card */}
+          <View style={styles.controlCard}>
         {/* Card background glow when ON */}
         <Animated.View
           style={[
@@ -126,10 +202,8 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
           ]}
           pointerEvents="none"
         />
-
         {/* Label */}
         <Text style={styles.controlName}>Relay Control (GPIO23)</Text>
-
         {/* Tappable Relay Button */}
         <Animated.View style={{ transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
           <TouchableOpacity
@@ -151,7 +225,6 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
                 },
               ]}
             />
-
             {/* Relay circle */}
             <View style={[styles.relayCircle, relayStatus && styles.relayCircleOn]}>
               <Text style={[styles.relayIcon, relayStatus && styles.relayIconOn]}>
@@ -160,7 +233,6 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
             </View>
           </TouchableOpacity>
         </Animated.View>
-
         {/* Status text */}
         <View style={styles.statusRow}>
           <View style={[styles.statusDot, relayStatus ? styles.statusDotOn : styles.statusDotOff]} />
@@ -168,29 +240,24 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
             {isUpdatingRelay ? 'Updating...' : relayStatus ? 'OFF  —  Relay is off' : 'ON  —  Relay is active'}
           </Text>
         </View>
-
         {/* Tap hint */}
         <Text style={styles.tapHint}>Tap the relay to toggle</Text>
       </View>
-
       {/* Quick Stats */}
       <View style={styles.statsCard}>
         <Text style={styles.statsTitle}>Quick Stats</Text>
-
         <View style={styles.statRow}>
           <Text style={styles.statLabel}>Uptime</Text>
           <Text style={styles.statValue}>
             {metrics?.uptime !== undefined ? `${Math.floor(metrics.uptime / 3600)}h` : 'N/A'}
           </Text>
         </View>
-
         <View style={styles.statRow}>
           <Text style={styles.statLabel}>Free Heap</Text>
           <Text style={styles.statValue}>
             {metrics?.freeHeap !== undefined ? `${Math.floor(metrics.freeHeap / 1024)} KB` : 'N/A'}
           </Text>
         </View>
-
         <View style={[styles.statRow, styles.statRowLast]}>
           <Text style={styles.statLabel}>WiFi RSSI</Text>
           <Text style={styles.statValue}>
@@ -198,10 +265,11 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
           </Text>
         </View>
       </View>
+        </View>
+      )}
     </ScrollView>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -210,7 +278,6 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
   },
-
   // Control Card
   controlCard: {
     borderRadius: 28,
@@ -231,14 +298,12 @@ const styles = StyleSheet.create({
     top: 0, left: 0, right: 0, bottom: 0,
     borderRadius: 28,
   },
-
   controlName: {
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 32,
     letterSpacing: 0.3,
   },
-
   // Relay
   relayTouchable: {
     alignItems: 'center',
@@ -274,7 +339,6 @@ const styles = StyleSheet.create({
   relayIconOn: {
     opacity: 1,
   },
-
   // Status
   statusRow: {
     flexDirection: 'row',
@@ -305,7 +369,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     letterSpacing: 0.5,
   },
-
   // Stats Card
   statsCard: {
     borderRadius: 16,
@@ -341,6 +404,70 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  // Channel UI styles
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  channelCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  channelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  channelInfo: {
+    flex: 1,
+  },
+  channelName: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  channelNumber: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  stateBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  stateBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  channelToggleButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  channelToggleText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
 });
-
 export default ControllerScreen;
