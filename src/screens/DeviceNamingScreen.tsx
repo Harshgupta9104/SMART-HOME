@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { getStorageService, ProvisionedDevice } from '../services/storageService';
+import { useDevice } from '../contexts/DeviceContext';
 import RoomSelector from '../components/RoomSelector';
 
 interface DeviceNamingScreenProps {
@@ -41,16 +42,17 @@ const DeviceNamingScreen: React.FC<DeviceNamingScreenProps> = ({
   const [selectedRoom, setSelectedRoom] = useState('Unassigned');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // Get suggestions based on selected room
-  const suggestions = ROOM_SUGGESTIONS[selectedRoom] || ROOM_SUGGESTIONS['All rooms'];
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const inputFocusAnim = useRef(new Animated.Value(0)).current;
 
+  // Get suggestions based on selected room
+  const suggestions = ROOM_SUGGESTIONS[selectedRoom] || ROOM_SUGGESTIONS['All rooms'];
+
   const storageService = getStorageService();
+  const { registerCloudDevice } = useDevice();
 
   // Entry animation
   useEffect(() => {
@@ -125,7 +127,14 @@ const DeviceNamingScreen: React.FC<DeviceNamingScreenProps> = ({
         roomName: selectedRoom,
       };
 
+      // Save to local storage
       await storageService.addProvisionedDevice(updatedDevice);
+      
+      // Register to cloud (non-blocking - don't fail provisioning if cloud fails)
+      registerCloudDevice(updatedDevice).catch(err => {
+        console.warn('[DeviceNamingScreen] Cloud registration failed but provisioning succeeded:', err);
+      });
+
       navigateToDashboard(displayName.trim());
     } catch (err) {
       console.error('[DeviceNamingScreen] Error saving device name:', err);

@@ -14,9 +14,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import DraggableFlatList from 'react-native-draggable-flatlist';
-import { getStorageService, ProvisionedDevice } from '../services/storageService';
 import { useTheme } from '../context/ThemeContext';
 import { useRoom } from '../contexts/RoomContext';
+import { useDevice } from '../contexts/DeviceContext';
+import { CloudDevice } from '../types/device';
 import { Room } from '../types/room';
 
 // Constants
@@ -28,23 +29,32 @@ const normalizeRoomName = (name?: string): string =>
   (name || ROOM_UNASSIGNED).trim().toLowerCase();
 
 const getDevicesForRoom = (
+  roomId: string,
   roomName: string,
-  deviceList: ProvisionedDevice[]
-): ProvisionedDevice[] =>
-  deviceList.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(roomName));
+  deviceList: CloudDevice[],
+): CloudDevice[] =>
+  deviceList.filter(device => {
+    // Match by roomId first if available
+    if (device.roomId === roomId) {
+      return true;
+    }
+    // Fallback to roomName comparison
+    return normalizeRoomName(device.roomName) === normalizeRoomName(roomName);
+  });
 
 interface RoomItem {
   id: string;
   name: string;
   icon: string;
   deviceCount: number;
-  devices: ProvisionedDevice[];
+  devices: CloudDevice[];
 }
 
 const RoomManagementScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
   const { rooms: firestoreRooms, loadingState: roomLoadingState, createNewRoom, updateExistingRoom, archiveExistingRoom } = useRoom();
+  const { devices: cloudDevices } = useDevice();
   const [roomItems, setRoomItems] = useState<RoomItem[]>([]);
   const [draftRooms, setDraftRooms] = useState<RoomItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,8 +65,6 @@ const RoomManagementScreen = ({ navigation }: any) => {
   const [showSortSheet, setShowSortSheet] = useState(false);
   const [showAddRoomSheet, setShowAddRoomSheet] = useState(false);
   const [addRoomName, setAddRoomName] = useState('');
-
-  const storageService = getStorageService();
 
   // Helper function for sorting (stable, no dependencies)
   const applySort = useCallback((
@@ -90,15 +98,12 @@ const RoomManagementScreen = ({ navigation }: any) => {
     }
   }, []);
 
-  // Load room items from Firestore rooms and local devices
+  // Load room items from Firestore rooms and cloud devices
   const loadData = useCallback(async () => {
     try {
-      // Get local devices for counts (read-only, Phase 2D will migrate to cloud)
-      const savedDevices = await storageService.getProvisionedDevices();
-
       // Convert Firestore rooms to RoomItem for display
       const roomsWithDevices: RoomItem[] = firestoreRooms.map((room: Room) => {
-        const devicesInRoom = getDevicesForRoom(room.name, savedDevices);
+        const devicesInRoom = getDevicesForRoom(room.id, room.name, cloudDevices);
         return {
           id: room.id,
           name: room.name,
@@ -116,7 +121,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
       console.error('[RoomManagement] Failed to load data');
       Alert.alert('Error', 'Failed to load rooms');
     }
-  }, [firestoreRooms, sortMode, storageService, applySort]);
+  }, [firestoreRooms, cloudDevices, sortMode, applySort]);
 
   useEffect(() => {
     loadData();
@@ -510,7 +515,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
                         <View key={device.id} style={styles.deviceItem}>
                           <Icon name="smartphone" size={14} color={theme.textMuted} />
                           <Text style={[styles.deviceItemText, { color: theme.textSecondary }]} numberOfLines={1}>
-                            {device.displayName || device.name}
+                            {device.name}
                           </Text>
                         </View>
                       ))}

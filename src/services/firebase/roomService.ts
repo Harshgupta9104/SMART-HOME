@@ -75,15 +75,15 @@ export const getRoom = async (
 
 /**
  * Get all active rooms for a home, sorted by sortOrder
+ * Phase 2C: No composite index required - filtering and sorting done in-memory
  */
 export const getRoomsForHome = async (homeId: string): Promise<Room[]> => {
   try {
+    // Load all rooms without composite index query
     const roomsSnapshot = await firestore()
       .collection('homes')
       .doc(homeId)
       .collection('rooms')
-      .where('status', '==', 'active')
-      .orderBy('sortOrder', 'asc')
       .get();
 
     if (roomsSnapshot.empty) {
@@ -91,31 +91,25 @@ export const getRoomsForHome = async (homeId: string): Promise<Room[]> => {
       return [];
     }
 
-    const rooms = roomsSnapshot.docs.map(doc => doc.data() as Room);
-    console.log('[RoomService] Rooms loaded');
+    // Filter and sort in-memory
+    const rooms = roomsSnapshot.docs
+      .map(doc => doc.data() as Room)
+      .filter(room => room.status === 'active')
+      .sort((a, b) => {
+        // Sort by sortOrder, fallback to name if equal
+        const sortA = typeof a.sortOrder === 'number' ? a.sortOrder : 0;
+        const sortB = typeof b.sortOrder === 'number' ? b.sortOrder : 0;
+
+        if (sortA !== sortB) {
+          return sortA - sortB;
+        }
+
+        return a.name.localeCompare(b.name);
+      });
+
+    console.log('[RoomService] Rooms loaded', { count: rooms.length });
     return rooms;
   } catch (error) {
-    // Handle index not found by falling back to in-memory sort
-    if ((error as any).code === 'failed-precondition') {
-      console.log('[RoomService] Firestore index not available, using fallback');
-      const roomsSnapshot = await firestore()
-        .collection('homes')
-        .doc(homeId)
-        .collection('rooms')
-        .get();
-
-      if (roomsSnapshot.empty) {
-        return [];
-      }
-
-      const rooms = roomsSnapshot.docs
-        .map(doc => doc.data() as Room)
-        .filter(room => room.status === 'active')
-        .sort((a, b) => a.sortOrder - b.sortOrder);
-
-      return rooms;
-    }
-
     console.error('[RoomService] Failed to load rooms', {
       code: (error as any)?.code,
       message: (error as any)?.message,

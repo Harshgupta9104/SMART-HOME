@@ -43,6 +43,7 @@ export const RoomProvider = ({ children }: RoomProviderProps) => {
 
   const loadRooms = React.useCallback(async () => {
     if (!isAuthenticated || !user?.uid) {
+      console.log('[RoomContext] Not authenticated, skipping room load');
       setRooms([]);
       setLoadingState('idle');
       setError(null);
@@ -50,6 +51,7 @@ export const RoomProvider = ({ children }: RoomProviderProps) => {
     }
 
     if (!activeHome || homeLoadingState !== 'ready') {
+      console.log('[RoomContext] Home not ready yet', { activeHomeId: activeHome?.id, homeLoadingState });
       setRooms([]);
       setLoadingState('idle');
       setError(null);
@@ -57,13 +59,20 @@ export const RoomProvider = ({ children }: RoomProviderProps) => {
     }
 
     try {
+      console.log('[RoomContext] Loading rooms for home', { homeId: activeHome.id, userId: user.uid });
       setLoadingState('loading');
       setError(null);
       const loadedRooms = await ensureHomeHasDefaultRooms(activeHome.id, user.uid);
+      console.log('[RoomContext] Rooms loaded successfully', { count: loadedRooms.length });
       setRooms(loadedRooms);
       setLoadingState('ready');
-    } catch {
-      console.error('[RoomContext] Failed to load rooms');
+    } catch (err: any) {
+      console.error('[RoomContext] Failed to load rooms', {
+        error: err.message,
+        code: err.code,
+        homeId: activeHome?.id,
+        userId: user?.uid,
+      });
       setError('Failed to load rooms');
       setLoadingState('error');
       // Do NOT sign user out; room loading failure should not break auth gate
