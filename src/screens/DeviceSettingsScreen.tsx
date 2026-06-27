@@ -105,8 +105,9 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
           roomName: trimmedRoom 
         });
         // Update Firestore with both roomId and roomName
+        // For Unassigned: roomId: null (clears old value), roomName: "Unassigned"
         await updateExistingDevice(cloudDevice.id, { 
-          roomId: roomId || undefined,
+          roomId,
           roomName: trimmedRoom 
         });
 

@@ -24,13 +24,13 @@ interface DeviceDetailsScreenProps {
 
 // Wrapper components so each tab receives the device prop
 const MetricsTab = ({ device }: { device: ProvisionedDevice | CloudDevice }) =>
-  <MetricsScreen device={device as ProvisionedDevice} />;
+  <MetricsScreen device={device} />;
 
 const ControllerTab = ({ device }: { device: ProvisionedDevice | CloudDevice }) =>
   <ControllerScreen device={device} />;
 
 const SettingsTab = ({ device, onDeviceRemoved }: { device: ProvisionedDevice | CloudDevice; onDeviceRemoved: () => void }) =>
-  <DeviceSettingsScreen device={device as ProvisionedDevice} onDeviceRemoved={onDeviceRemoved} />;
+  <DeviceSettingsScreen device={device} onDeviceRemoved={onDeviceRemoved} />;
 
 const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();

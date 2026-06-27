@@ -196,10 +196,10 @@ export const updateCloudDevice = async (
       updateData.type = updates.type;
     }
     if (updates.roomId !== undefined) {
-      updateData.roomId = updates.roomId;
+      updateData.roomId = updates.roomId; // Supports null to clear roomId
     }
     if (updates.roomName !== undefined) {
-      updateData.roomName = updates.roomName;
+      updateData.roomName = updates.roomName; // Supports null to clear roomName
     }
     if (updates.description !== undefined) {
       updateData.description = updates.description;
@@ -587,7 +587,7 @@ export const mapProvisionedDeviceToCloudDevice = (
     mqttDeviceId: device.mqttDeviceId || device.id,
     name: device.displayName || device.name || 'Smart Device',
     type: 'smart_switch',
-    roomId: undefined,
+    // roomId intentionally omitted (not assigned until user moves to room)
     roomName: device.roomName || 'Unassigned',
     channelCount:
       typeof device.relayCount === 'number' && device.relayCount > 0

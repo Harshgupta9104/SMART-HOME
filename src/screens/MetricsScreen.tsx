@@ -8,9 +8,10 @@ import {
 } from 'react-native';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 import { ProvisionedDevice } from '../services/storageService';
+import { CloudDevice } from '../types/device';
 
 interface MetricsScreenProps {
-  device: ProvisionedDevice;
+  device: ProvisionedDevice | CloudDevice;
 }
 
 // ─── Plant state logic ────────────────────────────────────────────────────────

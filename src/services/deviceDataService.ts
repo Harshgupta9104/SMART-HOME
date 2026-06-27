@@ -410,6 +410,7 @@ class DeviceDataService {
       const updates: UpdateCloudDeviceInput = {
         status,
         lastSeenAt: now_iso,
+        lastMqttMessageAt: now_iso, // Phase 2M: Track MQTT message timestamp
       };
 
       // Update Firestore device document

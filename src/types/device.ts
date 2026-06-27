@@ -91,8 +91,8 @@ export interface CreateCloudDeviceInput {
 export interface UpdateCloudDeviceInput {
   name?: string;
   type?: DeviceType;
-  roomId?: string;
-  roomName?: string; // Fallback room name for migrated devices
+  roomId?: string | null; // null clears roomId, undefined skips update
+  roomName?: string | null; // null clears roomName, undefined skips update
   description?: string;
   status?: DeviceStatus;
   firmwareVersion?: string;
