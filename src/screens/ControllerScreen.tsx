@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import { ProvisionedDevice } from '../services/storageService';
-import { CloudDevice, DeviceChannel } from '../types/device';
+import { CloudDevice, DeviceChannel, UpdateChannelInput } from '../types/device';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 import { useTheme } from '../context/ThemeContext';
 import { useDevice } from '../contexts/DeviceContext';
@@ -261,14 +261,22 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device, homeId }) =
     setIsEditingSaving(true);
 
     try {
-      const updates: Record<string, any> = {
+      // Build updates object with proper handling of optional fields
+      // Always save name
+      // For optional fields: save if selected, set to null if cleared
+      const updates: Record<string, string | null | undefined> = {
         name: trimmedName,
       };
 
-      // Only include optional fields if they're set
+      // Icon: save if selected, set to null if empty (cleared)
       if (editingIcon) {
         updates.icon = editingIcon;
+      } else {
+        // Explicitly set to null to clear the field
+        updates.icon = null;
       }
+
+      // Room assignment: save both roomId and roomName if selected, clear both if empty
       if (editingRoomId) {
         updates.roomId = editingRoomId;
         // Find room name from firestoreRooms
@@ -276,9 +284,13 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device, homeId }) =
         if (selectedRoom) {
           updates.roomName = selectedRoom.name;
         }
+      } else {
+        // Explicitly set to null to clear both fields
+        updates.roomId = null;
+        updates.roomName = null;
       }
 
-      const updated = await updateExistingChannel(cloudDeviceId, editingChannel.id, updates);
+      const updated = await updateExistingChannel(cloudDeviceId, editingChannel.id, updates as UpdateChannelInput);
 
       if (updated) {
         // Update local channels list
@@ -289,6 +301,8 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device, homeId }) =
         console.log('[ControllerScreen] Channel saved:', {
           channelId: editingChannel.id,
           name: trimmedName,
+          icon: editingIcon || 'cleared',
+          roomId: editingRoomId || 'cleared',
         });
 
         setEditingChannel(null);

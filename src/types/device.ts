@@ -134,4 +134,7 @@ export interface UpdateChannelInput {
   type?: ChannelType;
   pin?: number;
   state?: ChannelState;
+  icon?: string | null;
+  roomId?: string | null;
+  roomName?: string | null;
 }

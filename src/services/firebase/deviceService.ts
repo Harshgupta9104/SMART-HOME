@@ -541,6 +541,16 @@ export const updateDeviceChannel = async (
       updateData.state = updates.state;
       updateData.lastUpdate = now;
     }
+    // Support optional fields: icon, roomId, roomName
+    if (updates.icon !== undefined) {
+      updateData.icon = updates.icon;
+    }
+    if (updates.roomId !== undefined) {
+      updateData.roomId = updates.roomId;
+    }
+    if (updates.roomName !== undefined) {
+      updateData.roomName = updates.roomName;
+    }
 
     await channelRef.update(removeUndefinedFields(updateData));
     console.log('[DeviceService] Channel updated:', channelId);
