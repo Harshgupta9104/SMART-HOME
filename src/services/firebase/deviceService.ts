@@ -210,6 +210,12 @@ export const updateCloudDevice = async (
     if (updates.firmwareVersion !== undefined) {
       updateData.firmwareVersion = updates.firmwareVersion;
     }
+    if (updates.lastSeenAt !== undefined) {
+      updateData.lastSeenAt = updates.lastSeenAt;
+    }
+    if (updates.lastMqttMessageAt !== undefined) {
+      updateData.lastMqttMessageAt = updates.lastMqttMessageAt;
+    }
     if (updates.lastSeen !== undefined) {
       updateData.lastSeen = updates.lastSeen;
     }

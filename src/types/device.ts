@@ -58,7 +58,9 @@ export interface CloudDevice {
   // Connection information
   status: DeviceStatus;
   firmwareVersion?: string;
-  lastSeen?: string;
+  lastSeenAt?: string; // ISO timestamp of last MQTT activity
+  lastMqttMessageAt?: string; // ISO timestamp of last MQTT message received
+  lastSeen?: string; // Deprecated: use lastSeenAt instead
 
   // Metadata
   createdAt: string;
@@ -94,7 +96,9 @@ export interface UpdateCloudDeviceInput {
   description?: string;
   status?: DeviceStatus;
   firmwareVersion?: string;
-  lastSeen?: string;
+  lastSeenAt?: string; // ISO timestamp of last MQTT activity
+  lastMqttMessageAt?: string; // ISO timestamp of last MQTT message received
+  lastSeen?: string; // Deprecated: use lastSeenAt instead
 }
 
 /**

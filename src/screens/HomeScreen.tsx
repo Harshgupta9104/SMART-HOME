@@ -19,6 +19,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useRoom } from '../contexts/RoomContext';
 import { useDevice } from '../contexts/DeviceContext';
 import { CloudDevice } from '../types/device';
+import { formatLastSeen } from '../utils/notificationHelpers';
 
 interface ActivityLog {
   id: string;
@@ -415,6 +416,30 @@ const HomeScreen = ({ navigation }: any) => {
                       <Text style={[styles.deviceRoom, { color: theme.textSecondary }]} numberOfLines={1}>
                         {getDeviceRoom(device)}
                       </Text>
+                      {/* Phase 2K-FIX1: Show device status and last seen */}
+                      <View style={styles.deviceHealthRow}>
+                        <View
+                          style={[
+                            styles.statusDot,
+                            {
+                              backgroundColor:
+                                device.status === 'online'
+                                  ? theme.success
+                                  : device.status === 'offline'
+                                  ? theme.danger
+                                  : theme.warning,
+                            },
+                          ]}
+                        />
+                        <Text style={[styles.deviceHealthText, { color: theme.textMuted }]} numberOfLines={1}>
+                          {device.status === 'online'
+                            ? 'Online'
+                            : device.status === 'offline'
+                            ? 'Offline'
+                            : 'Unknown'}
+                          {device.lastSeenAt && ` • ${formatLastSeen(device.lastSeenAt)}`}
+                        </Text>
+                      </View>
                     </View>
 
                     <View style={styles.deviceControl}>
@@ -677,6 +702,21 @@ const styles = StyleSheet.create({
   deviceRoom: {
     fontSize: 10,
     fontWeight: '500',
+  },
+  deviceHealthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  deviceHealthText: {
+    fontSize: 9,
+    fontWeight: '400',
   },
   deviceControl: {
     flexDirection: 'row',
