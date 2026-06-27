@@ -17,6 +17,7 @@ import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataServi
 import { useTheme } from '../context/ThemeContext';
 import { useDevice } from '../contexts/DeviceContext';
 import { useRoom } from '../contexts/RoomContext';
+import { formatLastSeen } from '../utils/notificationHelpers';
 
 interface ControllerScreenProps {
   device: ProvisionedDevice | CloudDevice;
@@ -348,6 +349,39 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device, homeId }) =
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      {/* Phase 2K-FIX1: Device health status section */}
+      {(device as CloudDevice).status && (
+        <View style={[styles.healthStatusCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.healthStatusRow}>
+            <View
+              style={[
+                styles.healthStatusDot,
+                {
+                  backgroundColor:
+                    (device as CloudDevice).status === 'online'
+                      ? theme.success
+                      : (device as CloudDevice).status === 'offline'
+                      ? theme.danger
+                      : theme.warning,
+                },
+              ]}
+            />
+            <Text style={[styles.healthStatusText, { color: theme.textPrimary }]}>
+              {(device as CloudDevice).status === 'online'
+                ? 'Device Online'
+                : (device as CloudDevice).status === 'offline'
+                ? 'Device Offline'
+                : 'Status Unknown'}
+            </Text>
+          </View>
+          {(device as CloudDevice).lastSeenAt && (
+            <Text style={[styles.healthLastSeenText, { color: theme.textMuted }]}>
+              Last seen: {formatLastSeen((device as CloudDevice).lastSeenAt!)}
+            </Text>
+          )}
+        </View>
+      )}
+
       {/* Show channel list for CloudDevice, or single relay for ProvisionedDevice */}
       {isCloudDevice ? (
         // Multi-relay UI from cloud channels
@@ -949,6 +983,35 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Phase 2K-FIX1: Device health status styles
+  healthStatusCard: {
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    marginTop: 8,
+    borderWidth: 1,
+  },
+  healthStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  healthStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  healthStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  healthLastSeenText: {
+    fontSize: 10,
+    fontWeight: '400',
+    marginLeft: 14,
   },
 });
 

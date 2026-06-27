@@ -8,7 +8,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { ProvisionedDevice } from '../services/storageService';
+import { CloudDevice } from '../types/device';
 import { useTheme } from '../context/ThemeContext';
+import { formatLastSeen } from '../utils/notificationHelpers';
 import MetricsScreen from './MetricsScreen';
 import ControllerScreen from './ControllerScreen';
 import DeviceSettingsScreen from './DeviceSettingsScreen';
@@ -21,19 +23,19 @@ interface DeviceDetailsScreenProps {
 }
 
 // Wrapper components so each tab receives the device prop
-const MetricsTab = ({ device }: { device: ProvisionedDevice }) =>
-  <MetricsScreen device={device} />;
+const MetricsTab = ({ device }: { device: ProvisionedDevice | CloudDevice }) =>
+  <MetricsScreen device={device as ProvisionedDevice} />;
 
-const ControllerTab = ({ device }: { device: ProvisionedDevice }) =>
+const ControllerTab = ({ device }: { device: ProvisionedDevice | CloudDevice }) =>
   <ControllerScreen device={device} />;
 
-const SettingsTab = ({ device, onDeviceRemoved }: { device: ProvisionedDevice; onDeviceRemoved: () => void }) =>
-  <DeviceSettingsScreen device={device} onDeviceRemoved={onDeviceRemoved} />;
+const SettingsTab = ({ device, onDeviceRemoved }: { device: ProvisionedDevice | CloudDevice; onDeviceRemoved: () => void }) =>
+  <DeviceSettingsScreen device={device as ProvisionedDevice} onDeviceRemoved={onDeviceRemoved} />;
 
 const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
-  const device: ProvisionedDevice = route?.params?.device;
+  const device: ProvisionedDevice | CloudDevice = route?.params?.device;
   // MQTT service available but not needed for current implementation
 
   const handleDeviceRemoved = () => {
@@ -47,6 +49,13 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
       </View>
     );
   }
+
+  // Determine if this is a CloudDevice or ProvisionedDevice
+  const isCloudDevice = (dev: any): dev is CloudDevice => dev && 'mqttDeviceId' in dev;
+  const cloudDevice = isCloudDevice(device) ? device : null;
+
+  // Get status - CloudDevice uses 'status' field, ProvisionedDevice uses 'status' as well
+  const deviceStatus = device.status || 'unknown';
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -68,11 +77,17 @@ const DeviceDetailsScreen: React.FC<DeviceDetailsScreenProps> = ({ navigation, r
         <View style={styles.headerInfo}>
           <Text style={[styles.deviceName, { color: theme.textPrimary }]} numberOfLines={1}>{device.name}</Text>
           <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: getStatusColor(device.status) }]} />
-            <Text style={[styles.statusText, { color: getStatusColor(device.status) }]}>
-              {device.status}
+            <View style={[styles.statusDot, { backgroundColor: getStatusColor(deviceStatus) }]} />
+            <Text style={[styles.statusText, { color: getStatusColor(deviceStatus) }]}>
+              {deviceStatus === 'online' ? 'Online' : deviceStatus === 'offline' ? 'Offline' : 'Unknown'}
             </Text>
           </View>
+          {/* Phase 2K-FIX1: Show lastSeenAt for CloudDevice */}
+          {cloudDevice?.lastSeenAt && (
+            <Text style={[styles.lastSeenText, { color: theme.textMuted }]} numberOfLines={1}>
+              Last seen: {formatLastSeen(cloudDevice.lastSeenAt)}
+            </Text>
+          )}
         </View>
 
         {/* Notification Bell Icon */}
@@ -193,6 +208,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'capitalize',
+  },
+  lastSeenText: {
+    fontSize: 10,
+    fontWeight: '400',
+    marginTop: 2,
   },
 });
 

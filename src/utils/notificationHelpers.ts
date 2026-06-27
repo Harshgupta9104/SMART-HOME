@@ -21,6 +21,40 @@ export const formatTimeAgo = (timestamp: number): string => {
 };
 
 /**
+ * Format last seen timestamp for device health display
+ * Accepts Date object or ISO string
+ */
+export const formatLastSeen = (timestamp: Date | string | number): string => {
+  let dateObj: Date;
+
+  if (typeof timestamp === 'string') {
+    // ISO string
+    dateObj = new Date(timestamp);
+  } else if (typeof timestamp === 'number') {
+    // Milliseconds since epoch
+    dateObj = new Date(timestamp);
+  } else {
+    // Already a Date object
+    dateObj = timestamp;
+  }
+
+  const now = Date.now();
+  const diff = now - dateObj.getTime();
+
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 60) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+
+  return dateObj.toLocaleDateString();
+};
+
+/**
  * Get icon name for notification type
  */
 export const getNotificationIcon = (type: NotificationType): string => {

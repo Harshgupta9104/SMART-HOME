@@ -7,6 +7,7 @@ import { getMQTTService } from './mqttService';
 import { getNotificationService } from './notificationService';
 import { deviceService } from './firebase/deviceService';
 import { parseRelayState, parseDeviceStatus } from '../utils/notificationHelpers';
+import { UpdateCloudDeviceInput } from '../types/device';
 
 export interface DeviceMetrics {
   deviceId: string;
@@ -177,14 +178,20 @@ class DeviceDataService {
       // Update cache
       this.metricsCache.set(deviceId, metrics);
 
-      // Phase 2K: Mark device online when ANY MQTT message is received
-      this.markDeviceOnlineFromMQTT(deviceId);
-
-      // Check for device status changes (online/offline)
+      // Check for device status changes first (online/offline)
+      // This may mark device as offline if status message explicitly says so
       this.handleDeviceStatusChange(deviceId, data);
 
       // Check for relay state changes
       this.handleRelayStateChange(deviceId, data);
+
+      // Phase 2K: Mark device online from general MQTT activity (only if not explicitly offline)
+      // Skip if we just processed an explicit offline status
+      const status = parseDeviceStatus(data);
+      if (status !== 'offline') {
+        // Only mark online if status wasn't explicitly offline
+        this.markDeviceOnlineFromMQTT(deviceId);
+      }
 
       // Notify all listeners
       this.notifyListeners(deviceId, metrics);
@@ -400,10 +407,9 @@ class DeviceDataService {
 
       // Build update object with current timestamp
       const now_iso = new Date().toISOString();
-      const updates: any = {
+      const updates: UpdateCloudDeviceInput = {
         status,
         lastSeenAt: now_iso,
-        updatedAt: now_iso,
       };
 
       // Update Firestore device document
