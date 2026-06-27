@@ -13,20 +13,27 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import { ProvisionedDevice, getStorageService } from '../services/storageService';
+import { CloudDevice } from '../types/device';
+import { deviceService } from '../services/firebase/deviceService';
 import { useTheme } from '../context/ThemeContext';
 
 interface DeviceSettingsScreenProps {
-  device: ProvisionedDevice;
+  device: ProvisionedDevice | CloudDevice;
   onDeviceRemoved: () => void;
 }
 
 const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onDeviceRemoved }) => {
   const { theme, isDark } = useTheme();
-  const [currentDevice, setCurrentDevice] = useState<ProvisionedDevice>(device);
+  // Support both ProvisionedDevice and CloudDevice
+  const isCloudDevice = (dev: any): dev is CloudDevice => dev && 'mqttDeviceId' in dev;
+  const cloudDevice = isCloudDevice(device) ? device : null;
+  
+  const [currentDevice, setCurrentDevice] = useState<ProvisionedDevice | CloudDevice>(device);
   const [rooms, setRooms] = useState<string[]>([]);
   const [showRoomPicker, setShowRoomPicker] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [updatingRoom, setUpdatingRoom] = useState(false);
+  const [deletingDevice, setDeletingDevice] = useState(false);
 
   const storageService = getStorageService();
 
@@ -78,7 +85,11 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
   };
 
   const handleRemoveDevice = async () => {
-    Alert.alert('Delete Device', `Delete "${currentDevice.displayName || currentDevice.name}"?`, [
+    const deviceName = isCloudDevice(currentDevice) 
+      ? currentDevice.name 
+      : (currentDevice as ProvisionedDevice).displayName || (currentDevice as ProvisionedDevice).name;
+
+    Alert.alert('Delete Device', `Delete "${deviceName}"?`, [
       {
         text: 'Cancel',
         style: 'cancel',
@@ -86,13 +97,34 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
       {
         text: 'Delete',
         onPress: async () => {
+          setDeletingDevice(true);
           try {
-            await storageService.removeProvisionedDevice(currentDevice.id);
+            // Delete from Firestore if CloudDevice
+            if (cloudDevice) {
+              console.log('[DeviceSettings] Deleting CloudDevice from Firestore:', {
+                homeId: cloudDevice.homeId,
+                deviceId: cloudDevice.id,
+              });
+              await deviceService.archiveCloudDevice(cloudDevice.homeId, cloudDevice.id);
+            }
+
+            // Delete from local storage if ProvisionedDevice
+            const localDeviceId = isCloudDevice(currentDevice) 
+              ? (currentDevice as CloudDevice).localDeviceId 
+              : (currentDevice as ProvisionedDevice).id;
+
+            if (localDeviceId) {
+              console.log('[DeviceSettings] Deleting ProvisionedDevice from storage:', localDeviceId);
+              await storageService.removeProvisionedDevice(localDeviceId);
+            }
+
             Alert.alert('Success', 'Device deleted');
             onDeviceRemoved();
           } catch (error) {
             console.error('[DeviceSettings] Error removing device:', error);
             Alert.alert('Error', 'Failed to delete device');
+          } finally {
+            setDeletingDevice(false);
           }
         },
         style: 'destructive',
@@ -148,14 +180,18 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
             <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
               <Text style={[styles.infoLabel, { color: theme.textMuted }]}>Device Name</Text>
               <Text style={[styles.infoValue, { color: theme.textPrimary }]} numberOfLines={1}>
-                {currentDevice.displayName || currentDevice.name}
+                {isCloudDevice(currentDevice) 
+                  ? (currentDevice as CloudDevice).name 
+                  : (currentDevice as ProvisionedDevice).displayName || (currentDevice as ProvisionedDevice).name}
               </Text>
             </View>
 
             <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
               <Text style={[styles.infoLabel, { color: theme.textMuted }]}>Device ID</Text>
               <Text style={[styles.infoValue, { color: theme.textSecondary }]} numberOfLines={1}>
-                {currentDevice.id}
+                {isCloudDevice(currentDevice) 
+                  ? (currentDevice as CloudDevice).id 
+                  : (currentDevice as ProvisionedDevice).id}
               </Text>
             </View>
 
@@ -193,11 +229,15 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
               </View>
             </View>
 
-            {currentDevice.firmwareVersion && (
+            {(isCloudDevice(currentDevice) 
+              ? (currentDevice as CloudDevice).firmwareVersion 
+              : (currentDevice as ProvisionedDevice).firmwareVersion) && (
               <View style={styles.infoRow}>
                 <Text style={[styles.infoLabel, { color: theme.textMuted }]}>Firmware</Text>
                 <Text style={[styles.infoValue, { color: theme.textPrimary }]}>
-                  {currentDevice.firmwareVersion}
+                  {isCloudDevice(currentDevice) 
+                    ? (currentDevice as CloudDevice).firmwareVersion 
+                    : (currentDevice as ProvisionedDevice).firmwareVersion}
                 </Text>
               </View>
             )}
@@ -209,11 +249,18 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
           <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>DANGER ZONE</Text>
 
           <TouchableOpacity
-            style={[styles.dangerCard, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: theme.danger }]}
+            style={[styles.dangerCard, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: theme.danger, opacity: deletingDevice ? 0.6 : 1 }]}
             onPress={handleRemoveDevice}
+            disabled={deletingDevice}
           >
-            <Icon name="trash-2" size={20} color={theme.danger} />
-            <Text style={[styles.dangerCardText, { color: theme.danger }]}>Delete Device</Text>
+            {deletingDevice ? (
+              <ActivityIndicator size="small" color={theme.danger} />
+            ) : (
+              <Icon name="trash-2" size={20} color={theme.danger} />
+            )}
+            <Text style={[styles.dangerCardText, { color: theme.danger }]}>
+              {deletingDevice ? 'Deleting...' : 'Delete Device'}
+            </Text>
           </TouchableOpacity>
         </View>
 
