@@ -113,6 +113,18 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
         count: loadedDevices.length,
       });
       setDevices(loadedDevices);
+
+      // Phase 2J: Register cloud device links for MQTT → Firestore sync
+      const deviceDataService = require('../services/deviceDataService').getDeviceDataService();
+      for (const device of loadedDevices) {
+        const mqttId = device.mqttDeviceId || device.localDeviceId || device.id;
+        deviceDataService.registerCloudDeviceLink({
+          homeId: device.homeId,
+          cloudDeviceId: device.id,
+          mqttDeviceId: mqttId,
+        });
+      }
+
       setLoadingState('ready');
     } catch (err: any) {
       console.error('[DeviceContext] Failed to load cloud devices', {

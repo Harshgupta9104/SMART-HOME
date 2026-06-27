@@ -25,12 +25,63 @@ export interface DeviceDataListener {
   (metrics: DeviceMetrics): void;
 }
 
+/**
+ * Maps MQTT device ID to cloud device metadata for Firestore sync
+ * Phase 2J: Used to sync relay state from MQTT responses to Firestore
+ */
+interface CloudDeviceLink {
+  homeId: string;
+  cloudDeviceId: string;
+  mqttDeviceId: string;
+}
+
 class DeviceDataService {
   private metricsCache: Map<string, DeviceMetrics> = new Map();
   private listeners: Map<string, Set<DeviceDataListener>> = new Map();
   private mqttUnsubscribers: Map<string, () => void> = new Map();
   private deviceStatusCache: Map<string, 'online' | 'offline'> = new Map();
   private deviceNameCache: Map<string, string> = new Map();
+
+  // Phase 2J: Cloud device link registry for MQTT → Firestore mapping
+  private cloudDeviceLinks: Map<string, CloudDeviceLink> = new Map();
+
+  // Phase 2J: Duplicate write prevention cache (key: "${homeId}:${cloudDeviceId}:relay_1")
+  private channelStateCache: Map<string, 'on' | 'off' | 'unknown'> = new Map();
+
+  /**
+   * Phase 2J: Register a cloud device link for MQTT → Firestore mapping
+   * Called when a CloudDevice is loaded in DeviceContext
+   *
+   * @param link - Cloud device link with homeId, cloudDeviceId, mqttDeviceId
+   */
+  registerCloudDeviceLink(link: CloudDeviceLink): void {
+    this.cloudDeviceLinks.set(link.mqttDeviceId, link);
+    console.log('[DeviceData] ✅ Cloud device link registered:', {
+      mqttDeviceId: link.mqttDeviceId,
+      cloudDeviceId: link.cloudDeviceId,
+      homeId: link.homeId,
+    });
+  }
+
+  /**
+   * Phase 2J: Unregister a cloud device link
+   * Called when a device is no longer needed or app exits
+   *
+   * @param mqttDeviceId - MQTT device ID to unregister
+   */
+  unregisterCloudDeviceLink(mqttDeviceId: string): void {
+    if (this.cloudDeviceLinks.delete(mqttDeviceId)) {
+      console.log('[DeviceData] 🔕 Cloud device link unregistered:', mqttDeviceId);
+    }
+  }
+
+  /**
+   * Phase 2J: Get cloud device link by MQTT device ID
+   * Returns null if no link registered (e.g., local-only device)
+   */
+  private getCloudDeviceLinkByMqttId(mqttDeviceId: string): CloudDeviceLink | null {
+    return this.cloudDeviceLinks.get(mqttDeviceId) || null;
+  }
 
   /**
    * Subscribe to real-time metrics for a device
@@ -190,6 +241,7 @@ class DeviceDataService {
 
   /**
    * Handle relay state changes
+   * Phase 2J: Now syncs actual ESP32 relay state from MQTT responses to Firestore
    */
   private async handleRelayStateChange(deviceId: string, data: any): Promise<void> {
     const relayInfo = parseRelayState(data);
@@ -215,6 +267,61 @@ class DeviceDataService {
         'info',
         { deviceId, deviceName, relayNumber: relayInfo.relayNumber || 1, source: 'mqtt' }
       );
+
+      // Phase 2J: Sync relay state from MQTT response to Firestore
+      await this.syncRelayStateToFirestore(deviceId, relayInfo.state);
+    }
+  }
+
+  /**
+   * Phase 2J: Sync relay state from MQTT response to Firestore
+   * Called when ESP32 responds with actual relay state via esp32/{deviceId}/relay/state
+   *
+   * @param mqttDeviceId - MQTT device ID (e.g., "26B7B3F8")
+   * @param relayState - Relay state from MQTT (e.g., "ON" or "OFF")
+   */
+  private async syncRelayStateToFirestore(mqttDeviceId: string, relayState: 'ON' | 'OFF'): Promise<void> {
+    try {
+      // Get cloud device link for this MQTT device
+      const link = this.getCloudDeviceLinkByMqttId(mqttDeviceId);
+
+      if (!link) {
+        console.log('[DeviceData] No cloud device link found for MQTT device:', mqttDeviceId);
+        return; // Local-only device, skip Firestore sync
+      }
+
+      // Convert ON/OFF to on/off for Firestore
+      const nextState: 'on' | 'off' = relayState === 'ON' ? 'on' : 'off';      // Check duplicate write prevention cache
+      const cacheKey = `${link.homeId}:${link.cloudDeviceId}:relay_1`;
+      const cachedState = this.channelStateCache.get(cacheKey);
+
+      if (cachedState === nextState) {
+        console.log('[DeviceData] Skipping Firestore sync, relay_1 state unchanged:', nextState);
+        return;
+      }
+
+      console.log('[DeviceData] 📡 Syncing relay_1 state to Firestore:', {
+        homeId: link.homeId,
+        cloudDeviceId: link.cloudDeviceId,
+        state: nextState,
+      });
+
+      // Update Firestore channel state
+      await deviceService.updateDeviceChannel(link.homeId, link.cloudDeviceId, 'relay_1', {
+        state: nextState,
+      });
+
+      // Update cache to prevent duplicate writes
+      this.channelStateCache.set(cacheKey, nextState);
+
+      console.log('[DeviceData] ✅ Firestore relay_1 state synced:', nextState);
+    } catch (error) {
+      console.error('[DeviceData] ❌ Failed to sync relay state to Firestore:', {
+        mqttDeviceId,
+        relayState,
+        error: (error as any)?.message,
+      });
+      // Don't throw — let MQTT listener continue
     }
   }
 
