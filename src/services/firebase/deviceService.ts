@@ -10,6 +10,16 @@ import {
 } from '../../types/device';
 
 /**
+ * Remove undefined values from an object before Firestore write
+ * Firestore rejects undefined but accepts missing fields
+ */
+const removeUndefinedFields = <T extends Record<string, any>>(data: T): Partial<T> => {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+};
+
+/**
  * Create or update a cloud device (idempotent)
  * If device already exists by localDeviceId, updates it
  */
@@ -49,7 +59,7 @@ export const createOrUpdateCloudDevice = async (input: CreateCloudDeviceInput): 
         updates.roomName = input.roomName;
       }
 
-      await existingDoc.ref.update(updates);
+      await existingDoc.ref.update(removeUndefinedFields(updates));
       console.log('[DeviceService] Cloud device updated (existing):', existingDevice.id);
 
       return {
@@ -85,12 +95,15 @@ export const createOrUpdateCloudDevice = async (input: CreateCloudDeviceInput): 
       createdBy: input.createdBy,
     };
 
-    await deviceRef.set(newDevice);
+    await deviceRef.set(removeUndefinedFields(newDevice));
     console.log('[DeviceService] Cloud device created:', deviceId);
 
     return newDevice;
   } catch (error) {
-    console.error('[DeviceService] Failed to create/update cloud device:', error);
+    console.error('[DeviceService] Failed to create/update cloud device', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
     throw error;
   }
 };
@@ -118,7 +131,10 @@ export const getDevicesForHome = async (homeId: string): Promise<CloudDevice[]> 
     console.log('[DeviceService] Cloud devices loaded:', { homeId, count: devices.length });
     return devices;
   } catch (error) {
-    console.error('[DeviceService] Failed to load cloud devices:', error);
+    console.error('[DeviceService] Failed to load cloud devices', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
     throw error;
   }
 };
@@ -142,7 +158,10 @@ export const getCloudDevice = async (homeId: string, deviceId: string): Promise<
 
     return deviceDoc.data() as CloudDevice;
   } catch (error) {
-    console.error('[DeviceService] Failed to get cloud device:', error);
+    console.error('[DeviceService] Failed to get cloud device', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
     throw error;
   }
 };
@@ -194,13 +213,16 @@ export const updateCloudDevice = async (
       updateData.lastSeen = updates.lastSeen;
     }
 
-    await deviceRef.update(updateData);
+    await deviceRef.update(removeUndefinedFields(updateData));
     console.log('[DeviceService] Cloud device updated:', deviceId);
 
     const updatedDoc = await deviceRef.get();
     return updatedDoc.data() as CloudDevice;
   } catch (error) {
-    console.error('[DeviceService] Failed to update cloud device:', error);
+    console.error('[DeviceService] Failed to update cloud device', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
     throw error;
   }
 };
@@ -217,14 +239,17 @@ export const archiveCloudDevice = async (homeId: string, deviceId: string): Prom
       .doc(homeId)
       .collection('devices')
       .doc(deviceId)
-      .update({
+      .update(removeUndefinedFields({
         status: 'archived',
         updatedAt: now,
-      });
+      }));
 
     console.log('[DeviceService] Cloud device archived:', deviceId);
   } catch (error) {
-    console.error('[DeviceService] Failed to archive cloud device:', error);
+    console.error('[DeviceService] Failed to archive cloud device', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
     throw error;
   }
 };
@@ -259,12 +284,15 @@ export const createDeviceChannel = async (input: CreateChannelInput): Promise<De
       updatedAt: now,
     };
 
-    await channelRef.set(newChannel);
+    await channelRef.set(removeUndefinedFields(newChannel));
     console.log('[DeviceService] Channel created:', channelId);
 
     return newChannel;
   } catch (error) {
-    console.error('[DeviceService] Failed to create channel:', error);
+    console.error('[DeviceService] Failed to create channel', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
     throw error;
   }
 };
@@ -289,7 +317,10 @@ export const getChannelsForDevice = async (homeId: string, deviceId: string): Pr
 
     return channelsSnapshot.docs.map(doc => doc.data() as DeviceChannel);
   } catch (error) {
-    console.error('[DeviceService] Failed to get channels:', error);
+    console.error('[DeviceService] Failed to get channels', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
     throw error;
   }
 };
@@ -333,13 +364,16 @@ export const updateDeviceChannel = async (
       updateData.lastUpdate = now;
     }
 
-    await channelRef.update(updateData);
+    await channelRef.update(removeUndefinedFields(updateData));
     console.log('[DeviceService] Channel updated:', channelId);
 
     const updatedDoc = await channelRef.get();
     return updatedDoc.data() as DeviceChannel;
   } catch (error) {
-    console.error('[DeviceService] Failed to update channel:', error);
+    console.error('[DeviceService] Failed to update channel', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
     throw error;
   }
 };
@@ -356,12 +390,15 @@ export const mapProvisionedDeviceToCloudDevice = (
     homeId,
     localDeviceId: device.id,
     bleId: device.bleId,
-    mqttDeviceId: device.mqttDeviceId,
+    mqttDeviceId: device.mqttDeviceId || device.id,
     name: device.displayName || device.name || 'Smart Device',
     type: 'smart_switch',
     roomId: undefined,
     roomName: device.roomName || 'Unassigned',
-    channelCount: device.relayCount,
+    channelCount:
+      typeof device.relayCount === 'number' && device.relayCount > 0
+        ? device.relayCount
+        : 1,
     firmwareVersion: device.firmwareVersion,
     createdBy: userId,
   };
