@@ -10,12 +10,14 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import { ProvisionedDevice, getStorageService } from '../services/storageService';
 import { CloudDevice } from '../types/device';
 import { deviceService } from '../services/firebase/deviceService';
 import { useTheme } from '../context/ThemeContext';
+import { useDevice } from '../contexts/DeviceContext';
 
 interface DeviceSettingsScreenProps {
   device: ProvisionedDevice | CloudDevice;
@@ -24,6 +26,7 @@ interface DeviceSettingsScreenProps {
 
 const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onDeviceRemoved }) => {
   const { theme, isDark } = useTheme();
+  const { updateExistingDevice } = useDevice();
   // Support both ProvisionedDevice and CloudDevice
   const isCloudDevice = (dev: any): dev is CloudDevice => dev && 'mqttDeviceId' in dev;
   const cloudDevice = isCloudDevice(device) ? device : null;
@@ -34,6 +37,13 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [updatingRoom, setUpdatingRoom] = useState(false);
   const [deletingDevice, setDeletingDevice] = useState(false);
+
+  // Rename state
+  const [renamingDevice, setRenamingDevice] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [newDeviceName, setNewDeviceName] = useState(
+    isCloudDevice(device) ? (device as CloudDevice).name : (device as ProvisionedDevice).displayName || (device as ProvisionedDevice).name
+  );
 
   const storageService = getStorageService();
 
@@ -71,6 +81,13 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
       // Update device room in storage
       await storageService.updateDeviceRoom(currentDevice.id, trimmedRoom);
 
+      // Update Firestore if CloudDevice
+      if (cloudDevice) {
+        console.log('[DeviceSettings] Updating CloudDevice room:', { deviceId: cloudDevice.id, roomName: trimmedRoom });
+        // Note: roomId mapping would require RoomContext, so we just pass roomName for now
+        await updateExistingDevice(cloudDevice.id, { roomName: trimmedRoom });
+      }
+
       // Update local state
       const updatedDevice = { ...currentDevice, roomName: trimmedRoom };
       setCurrentDevice(updatedDevice);
@@ -82,6 +99,67 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
     } finally {
       setUpdatingRoom(false);
     }
+  };
+
+  const handleRenameDevice = async () => {
+    try {
+      const trimmedName = newDeviceName.trim();
+
+      // Validation
+      if (!trimmedName) {
+        Alert.alert('Error', 'Device name cannot be empty');
+        return;
+      }
+
+      if (trimmedName.length > 40) {
+        Alert.alert('Error', 'Device name must be 40 characters or less');
+        return;
+      }
+
+      setRenamingDevice(true);
+      setShowRenameModal(false);
+
+      // Update Firestore if CloudDevice
+      if (cloudDevice) {
+        console.log('[DeviceSettings] Renaming CloudDevice:', { deviceId: cloudDevice.id, newName: trimmedName });
+        await updateExistingDevice(cloudDevice.id, { name: trimmedName });
+      }
+
+      // Update local storage if ProvisionedDevice
+      if (!isCloudDevice(currentDevice)) {
+        const provDevice = currentDevice as ProvisionedDevice;
+        console.log('[DeviceSettings] Renaming ProvisionedDevice:', { deviceId: provDevice.id, newName: trimmedName });
+        await storageService.updateProvisionedDevice(provDevice.id, { displayName: trimmedName });
+      }
+
+      // Update local state
+      const updatedDevice = {
+        ...currentDevice,
+        ...(isCloudDevice(currentDevice) ? { name: trimmedName } : { displayName: trimmedName }),
+      };
+      setCurrentDevice(updatedDevice);
+
+      Alert.alert('Success', `Device renamed to "${trimmedName}"`);
+    } catch (error) {
+      console.error('[DeviceSettings] Error renaming device:', error);
+      Alert.alert('Error', 'Failed to rename device');
+    } finally {
+      setRenamingDevice(false);
+    }
+  };
+
+  const handleWiFiReconfiguration = () => {
+    Alert.alert(
+      'WiFi Reconfiguration',
+      'WiFi reconfiguration will be available in a later provisioning update.\n\nTo change WiFi settings, use BLE provisioning again during device setup.'
+    );
+  };
+
+  const handleFactoryReset = () => {
+    Alert.alert(
+      'Factory Reset',
+      'Factory reset requires firmware support and will be added later.\n\nThis feature will allow you to restore the device to factory settings and re-provision it.'
+    );
   };
 
   const handleRemoveDevice = async () => {
@@ -139,6 +217,48 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Device Identity - Rename */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>DEVICE IDENTITY</Text>
+
+          <TouchableOpacity
+            style={[styles.settingCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+            onPress={() => {
+              setNewDeviceName(
+                isCloudDevice(currentDevice)
+                  ? (currentDevice as CloudDevice).name
+                  : (currentDevice as ProvisionedDevice).displayName || (currentDevice as ProvisionedDevice).name
+              );
+              setShowRenameModal(true);
+            }}
+            disabled={renamingDevice}
+          >
+            <View style={styles.settingCardContent}>
+              <View style={styles.settingCardLeft}>
+                <Icon name="edit-3" size={20} color={theme.primary} />
+                <View style={styles.settingCardInfo}>
+                  <Text style={[styles.settingLabel, { color: theme.textMuted }]}>Device Name</Text>
+                  <Text style={[styles.settingValue, { color: theme.textPrimary }]} numberOfLines={1}>
+                    {isCloudDevice(currentDevice)
+                      ? (currentDevice as CloudDevice).name
+                      : (currentDevice as ProvisionedDevice).displayName || (currentDevice as ProvisionedDevice).name}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.settingCardRight}>
+                {renamingDevice ? (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                ) : (
+                  <>
+                    <Text style={[styles.changeText, { color: theme.primary }]}>Edit</Text>
+                    <Icon name="chevron-right" size={16} color={theme.textMuted} />
+                  </>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
         {/* Room Settings */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>LOCATION</Text>
@@ -244,6 +364,50 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
           </View>
         </View>
 
+        {/* WiFi Reconfiguration */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>CONNECTIVITY</Text>
+
+          <TouchableOpacity
+            style={[styles.placeholderCard, { backgroundColor: theme.card, borderColor: theme.border, opacity: 0.6 }]}
+            onPress={handleWiFiReconfiguration}
+            disabled={true}
+          >
+            <View style={styles.settingCardContent}>
+              <View style={styles.settingCardLeft}>
+                <Icon name="wifi" size={20} color={theme.textMuted} />
+                <View style={styles.settingCardInfo}>
+                  <Text style={[styles.settingLabel, { color: theme.textMuted }]}>WiFi Reconfiguration</Text>
+                  <Text style={[styles.placeholderText, { color: theme.textMuted }]}>Coming soon</Text>
+                </View>
+              </View>
+              <Icon name="lock" size={14} color={theme.textMuted} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Factory Reset */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>DEVICE MAINTENANCE</Text>
+
+          <TouchableOpacity
+            style={[styles.placeholderCard, { backgroundColor: theme.card, borderColor: theme.border, opacity: 0.6 }]}
+            onPress={handleFactoryReset}
+            disabled={true}
+          >
+            <View style={styles.settingCardContent}>
+              <View style={styles.settingCardLeft}>
+                <Icon name="rotate-ccw" size={20} color={theme.textMuted} />
+                <View style={styles.settingCardInfo}>
+                  <Text style={[styles.settingLabel, { color: theme.textMuted }]}>Factory Reset</Text>
+                  <Text style={[styles.placeholderText, { color: theme.textMuted }]}>Coming soon</Text>
+                </View>
+              </View>
+              <Icon name="lock" size={14} color={theme.textMuted} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
         {/* Danger Zone */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>DANGER ZONE</Text>
@@ -266,6 +430,53 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Rename Device Modal */}
+      <Modal visible={showRenameModal} transparent animationType="fade" onRequestClose={() => setShowRenameModal(false)}>
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Rename device</Text>
+            </View>
+
+            <View style={styles.renameModalBody}>
+              <TextInput
+                style={[styles.renameInput, { color: theme.textPrimary, borderColor: theme.border, backgroundColor: theme.background }]}
+                placeholder="Enter device name"
+                placeholderTextColor={theme.textMuted}
+                value={newDeviceName}
+                onChangeText={setNewDeviceName}
+                maxLength={40}
+                editable={!renamingDevice}
+              />
+              <Text style={[styles.charCount, { color: theme.textMuted }]}>
+                {newDeviceName.length}/40
+              </Text>
+            </View>
+
+            <View style={[styles.modalFooter, { borderTopColor: theme.border }]}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: theme.background }]}
+                onPress={() => setShowRenameModal(false)}
+                disabled={renamingDevice}
+              >
+                <Text style={[styles.modalButtonText, { color: theme.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: theme.primary, opacity: renamingDevice ? 0.6 : 1 }]}
+                onPress={handleRenameDevice}
+                disabled={renamingDevice}
+              >
+                {renamingDevice ? (
+                  <ActivityIndicator size="small" color={theme.background} />
+                ) : (
+                  <Text style={[styles.modalButtonText, { color: theme.background, fontWeight: '600' }]}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Room Picker Modal */}
       <Modal visible={showRoomPicker} transparent animationType="fade" onRequestClose={() => setShowRoomPicker(false)}>
@@ -485,6 +696,52 @@ const createStyles = (_theme: any) =>
     modalCloseText: {
       fontSize: 14,
       fontWeight: '600',
+    },
+    // Phase 2L: New styles for rename and placeholders
+    placeholderCard: {
+      borderRadius: 12,
+      padding: 14,
+      borderWidth: 1,
+    },
+    placeholderText: {
+      fontSize: 11,
+      fontWeight: '500',
+    },
+    renameModalBody: {
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      gap: 6,
+    },
+    renameInput: {
+      borderRadius: 10,
+      borderWidth: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    charCount: {
+      fontSize: 11,
+      textAlign: 'right',
+      fontWeight: '500',
+    },
+    modalFooter: {
+      flexDirection: 'row',
+      gap: 10,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderTopWidth: 1,
+    },
+    modalButton: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalButtonText: {
+      fontSize: 14,
+      fontWeight: '500',
     },
   });
 
