@@ -16,6 +16,7 @@ import {
 import { CloudDevice, UpdateCloudDeviceInput } from '../types/device';
 import { useAuth } from './AuthContext';
 import { useHome } from './HomeContext';
+import { useRoom } from './RoomContext';
 import { getStorageService, ProvisionedDevice } from '../services/storageService';
 
 export type DeviceLoadingState = 'idle' | 'loading' | 'ready' | 'error';
@@ -40,12 +41,33 @@ type DeviceProviderProps = {
 export const DeviceProvider = ({ children }: DeviceProviderProps) => {
   const { user, isAuthenticated } = useAuth();
   const { activeHome, loadingState: homeLoadingState } = useHome();
+  const { rooms: firestoreRooms } = useRoom();
   const [devices, setDevices] = useState<CloudDevice[]>([]);
   const [loadingState, setLoadingState] = useState<DeviceLoadingState>('idle');
   const [error, setError] = useState<string | null>(null);
   const syncAttemptedRef = React.useRef(false);
 
   const storageService = getStorageService();
+
+  /**
+   * Normalize room name for safe comparison
+   */
+  const normalizeRoomName = (name?: string): string => {
+    return (name || 'Unassigned').trim().toLowerCase();
+  };
+
+  /**
+   * Find Firestore room ID by room name
+   */
+  const findRoomIdByName = React.useCallback(
+    (roomName?: string): string | undefined => {
+      if (!roomName) return undefined;
+      const normalized = normalizeRoomName(roomName);
+      const matchedRoom = firestoreRooms.find(room => normalizeRoomName(room.name) === normalized);
+      return matchedRoom?.id;
+    },
+    [firestoreRooms],
+  );
 
   /**
    * Load cloud devices from Firestore for the active home
@@ -137,7 +159,15 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
       // Sync each local device to cloud (idempotent)
       for (const localDevice of localDevices) {
         try {
-          const cloudInput = mapProvisionedDeviceToCloudDevice(localDevice, activeHome.id, user.uid);
+          const baseInput = mapProvisionedDeviceToCloudDevice(localDevice, activeHome.id, user.uid);
+
+          // Enrich with roomId if a matching Firestore room exists
+          const roomId = findRoomIdByName(baseInput.roomName);
+          const cloudInput = {
+            ...baseInput,
+            roomId: roomId || baseInput.roomId,
+          };
+
           await createOrUpdateCloudDevice(cloudInput);
         } catch (syncError) {
           console.error('[DeviceContext] Failed to sync device:', {
@@ -154,7 +184,7 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
     } catch (err) {
       console.error('[DeviceContext] Failed to sync local devices to cloud:', err);
     }
-  }, [activeHome, user?.uid, storageService, loadDevices]);
+  }, [activeHome, user?.uid, storageService, loadDevices, findRoomIdByName]);
 
   /**
    * After devices load successfully, auto-sync local devices once per session
@@ -178,7 +208,15 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
       }
 
       try {
-        const cloudInput = mapProvisionedDeviceToCloudDevice(localDevice, activeHome.id, user.uid);
+        const baseInput = mapProvisionedDeviceToCloudDevice(localDevice, activeHome.id, user.uid);
+
+        // Enrich with roomId if a matching Firestore room exists
+        const roomId = findRoomIdByName(baseInput.roomName);
+        const cloudInput = {
+          ...baseInput,
+          roomId: roomId || baseInput.roomId,
+        };
+
         const cloudDevice = await createOrUpdateCloudDevice(cloudInput);
         console.log('[DeviceContext] Device registered to cloud:', cloudDevice.id);
 
@@ -191,7 +229,7 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
         return null;
       }
     },
-    [activeHome, user?.uid, loadDevices],
+    [activeHome, user?.uid, loadDevices, findRoomIdByName],
   );
 
   /**

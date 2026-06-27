@@ -45,6 +45,9 @@ export const createOrUpdateCloudDevice = async (input: CreateCloudDeviceInput): 
       if (input.roomId) {
         updates.roomId = input.roomId;
       }
+      if (input.roomName) {
+        updates.roomName = input.roomName;
+      }
 
       await existingDoc.ref.update(updates);
       console.log('[DeviceService] Cloud device updated (existing):', existingDevice.id);
@@ -73,6 +76,7 @@ export const createOrUpdateCloudDevice = async (input: CreateCloudDeviceInput): 
       name: input.name,
       type: input.type,
       roomId: input.roomId,
+      roomName: input.roomName,
       channelCount: input.channelCount,
       firmwareVersion: input.firmwareVersion,
       status: 'online',
@@ -173,6 +177,9 @@ export const updateCloudDevice = async (
     }
     if (updates.roomId !== undefined) {
       updateData.roomId = updates.roomId;
+    }
+    if (updates.roomName !== undefined) {
+      updateData.roomName = updates.roomName;
     }
     if (updates.description !== undefined) {
       updateData.description = updates.description;
@@ -350,9 +357,10 @@ export const mapProvisionedDeviceToCloudDevice = (
     localDeviceId: device.id,
     bleId: device.bleId,
     mqttDeviceId: device.mqttDeviceId,
-    name: device.displayName || device.name,
+    name: device.displayName || device.name || 'Smart Device',
     type: 'smart_switch',
     roomId: undefined,
+    roomName: device.roomName || 'Unassigned',
     channelCount: device.relayCount,
     firmwareVersion: device.firmwareVersion,
     createdBy: userId,

@@ -17,6 +17,7 @@ import DraggableFlatList from 'react-native-draggable-flatlist';
 import { useTheme } from '../context/ThemeContext';
 import { useRoom } from '../contexts/RoomContext';
 import { useDevice } from '../contexts/DeviceContext';
+import { CloudDevice } from '../types/device';
 import { Room } from '../types/room';
 
 // Constants
@@ -29,16 +30,24 @@ const normalizeRoomName = (name?: string): string =>
 
 const getDevicesForRoom = (
   roomId: string,
-  deviceList: any[]  // CloudDevice[]
-): any[] =>
-  deviceList.filter(device => device.roomId === roomId);
+  roomName: string,
+  deviceList: CloudDevice[],
+): CloudDevice[] =>
+  deviceList.filter(device => {
+    // Match by roomId first if available
+    if (device.roomId === roomId) {
+      return true;
+    }
+    // Fallback to roomName comparison
+    return normalizeRoomName(device.roomName) === normalizeRoomName(roomName);
+  });
 
 interface RoomItem {
   id: string;
   name: string;
   icon: string;
   deviceCount: number;
-  devices: any[];  // CloudDevice[]
+  devices: CloudDevice[];
 }
 
 const RoomManagementScreen = ({ navigation }: any) => {
@@ -94,7 +103,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
     try {
       // Convert Firestore rooms to RoomItem for display
       const roomsWithDevices: RoomItem[] = firestoreRooms.map((room: Room) => {
-        const devicesInRoom = getDevicesForRoom(room.id, cloudDevices);
+        const devicesInRoom = getDevicesForRoom(room.id, room.name, cloudDevices);
         return {
           id: room.id,
           name: room.name,
@@ -506,7 +515,7 @@ const RoomManagementScreen = ({ navigation }: any) => {
                         <View key={device.id} style={styles.deviceItem}>
                           <Icon name="smartphone" size={14} color={theme.textMuted} />
                           <Text style={[styles.deviceItemText, { color: theme.textSecondary }]} numberOfLines={1}>
-                            {device.displayName || device.name}
+                            {device.name}
                           </Text>
                         </View>
                       ))}

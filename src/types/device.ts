@@ -38,6 +38,7 @@ export interface CloudDevice {
   name: string; // User-friendly name (e.g., "Living Room Hub")
   type: DeviceType;
   roomId?: string; // Reference to room document ID
+  roomName?: string; // Fallback room name for migrated devices (when roomId not available)
   description?: string;
 
   // Device configuration
@@ -68,6 +69,7 @@ export interface CreateCloudDeviceInput {
   name: string;
   type: DeviceType;
   roomId?: string;
+  roomName?: string; // Fallback room name for migrated devices
   channelCount: number;
   firmwareVersion?: string;
   createdBy: string;
@@ -80,6 +82,7 @@ export interface UpdateCloudDeviceInput {
   name?: string;
   type?: DeviceType;
   roomId?: string;
+  roomName?: string; // Fallback room name for migrated devices
   description?: string;
   status?: DeviceStatus;
   firmwareVersion?: string;

@@ -209,23 +209,31 @@ const HomeScreen = ({ navigation }: any) => {
       const room = firestoreRooms.find(r => r.id === device.roomId);
       if (room) return room.name;
     }
-    return 'Unassigned';
+    return device.roomName || 'Unassigned';
+  };
+
+  /**
+   * Check if device belongs to a specific room
+   */
+  const deviceBelongsToRoom = (device: CloudDevice, roomName: string): boolean => {
+    // Find the selected room's ID
+    const selectedRoomId = firestoreRooms.find(
+      room => normalizeRoomName(room.name) === normalizeRoomName(roomName),
+    )?.id;
+
+    // Match by roomId first if both available
+    if (selectedRoomId && device.roomId) {
+      return device.roomId === selectedRoomId;
+    }
+
+    // Fallback to roomName comparison
+    return normalizeRoomName(device.roomName) === normalizeRoomName(roomName);
   };
 
   // Filter devices by selected room
   const filteredDevices = selectedRoom === 'All rooms'
     ? cloudDevices
-    : cloudDevices.filter(device => {
-      // Match by roomId first if available
-      if (device.roomId) {
-        const selectedRoomId = firestoreRooms.find(r => r.name === selectedRoom)?.id;
-        if (selectedRoomId) {
-          return device.roomId === selectedRoomId;
-        }
-      }
-      // Fallback to roomName matching
-      return normalizeRoomName(device.name) === normalizeRoomName(selectedRoom) || device.name === selectedRoom;
-    });
+    : cloudDevices.filter(device => deviceBelongsToRoom(device, selectedRoom));
 
   const getActiveCount = (): number => {
     return cloudDevices.filter(device => device.status === 'online' && getDeviceToggleState(device)).length;
@@ -332,10 +340,7 @@ const HomeScreen = ({ navigation }: any) => {
 
             {/* Firestore rooms tabs */}
             {firestoreRooms.map(room => {
-              const roomCount = cloudDevices.filter(device => {
-                if (device.roomId === room.id) return true;
-                return false;
-              }).length;
+              const roomCount = cloudDevices.filter(device => deviceBelongsToRoom(device, room.name)).length;
               return (
                 <TouchableOpacity
                   key={room.id}
