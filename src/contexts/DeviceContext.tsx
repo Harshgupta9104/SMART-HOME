@@ -43,6 +43,7 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
   const [devices, setDevices] = useState<CloudDevice[]>([]);
   const [loadingState, setLoadingState] = useState<DeviceLoadingState>('idle');
   const [error, setError] = useState<string | null>(null);
+  const syncAttemptedRef = React.useRef(false);
 
   const storageService = getStorageService();
 
@@ -103,6 +104,13 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
   }, [loadDevices]);
 
   /**
+   * Reset sync flag when home/user changes
+   */
+  useEffect(() => {
+    syncAttemptedRef.current = false;
+  }, [activeHome?.id, user?.uid]);
+
+  /**
    * Refresh devices list
    */
   const refreshDevices = React.useCallback(async () => {
@@ -147,6 +155,16 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
       console.error('[DeviceContext] Failed to sync local devices to cloud:', err);
     }
   }, [activeHome, user?.uid, storageService, loadDevices]);
+
+  /**
+   * After devices load successfully, auto-sync local devices once per session
+   */
+  useEffect(() => {
+    if (loadingState === 'ready' && activeHome && user?.uid && !syncAttemptedRef.current) {
+      syncAttemptedRef.current = true;
+      syncLocalDevicesToCloud();
+    }
+  }, [loadingState, activeHome, user?.uid, syncLocalDevicesToCloud]);
 
   /**
    * Register a local device to cloud after provisioning

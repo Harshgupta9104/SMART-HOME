@@ -13,10 +13,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
-import { getStorageService, ProvisionedDevice } from '../services/storageService';
+
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 import { useTheme } from '../context/ThemeContext';
 import { useRoom } from '../contexts/RoomContext';
+import { useDevice } from '../contexts/DeviceContext';
+import { CloudDevice } from '../types/device';
 
 interface ActivityLog {
   id: string;
@@ -29,14 +31,13 @@ const HomeScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
   const { rooms: firestoreRooms } = useRoom();
-  const [devices, setDevices] = useState<ProvisionedDevice[]>([]);
+  const { devices: cloudDevices, refreshDevices } = useDevice();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string>('All rooms');
   const [deviceMetrics, setDeviceMetrics] = useState<Map<string, DeviceMetrics>>(new Map());
   const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
   const [togglingDevice, setTogglingDevice] = useState<string | null>(null);
 
-  const storageService = getStorageService();
   const deviceDataService = getDeviceDataService();
   const unsubscribersRef = useRef<Map<string, () => void>>(new Map());
 
@@ -47,13 +48,11 @@ const HomeScreen = ({ navigation }: any) => {
 
 
 
-  const loadProvisionedDevices = useCallback(async () => {
+  const loadDeviceMetrics = useCallback(async () => {
     try {
-      const provisionedDevices = await storageService.getProvisionedDevices();
-      setDevices(provisionedDevices);
-
-      provisionedDevices.forEach((device: ProvisionedDevice) => {
-        const mqttDeviceId = device.mqttDeviceId || device.id;
+      // Subscribe to MQTT metrics for all cloud devices
+      cloudDevices.forEach((device: CloudDevice) => {
+        const mqttDeviceId = device.mqttDeviceId || device.localDeviceId;
         const oldUnsubscribe = unsubscribersRef.current.get(mqttDeviceId);
         if (oldUnsubscribe) oldUnsubscribe();
 
@@ -64,9 +63,9 @@ const HomeScreen = ({ navigation }: any) => {
         unsubscribersRef.current.set(mqttDeviceId, unsubscribe);
       });
     } catch (error) {
-      console.error('[HomeScreen] Error loading provisioned devices:', error);
+      console.error('[HomeScreen] Error loading device metrics:', error);
     }
-  }, [storageService, deviceDataService]);
+  }, [cloudDevices, deviceDataService]);
 
   const loadRoomsWithDevices = useCallback(async () => {
     try {
@@ -85,31 +84,31 @@ const HomeScreen = ({ navigation }: any) => {
   useFocusEffect(
     useCallback(() => {
       const load = async () => {
-        await loadProvisionedDevices();
-        // After loading devices, validate room selection
+        await loadDeviceMetrics();
+        // After loading metrics, validate room selection
         await loadRoomsWithDevices();
       };
       load();
-    }, [loadProvisionedDevices, loadRoomsWithDevices])
+    }, [loadDeviceMetrics, loadRoomsWithDevices])
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadProvisionedDevices();
+    refreshDevices();
     loadRoomsWithDevices();
     setTimeout(() => setRefreshing(false), 1000);
-  }, [loadProvisionedDevices, loadRoomsWithDevices]);
+  }, [refreshDevices, loadRoomsWithDevices]);
 
   const handleAddDevice = () => {
     navigation.navigate('AddDevice');
   };
 
-  const handleDevicePress = (device: ProvisionedDevice) => {
+  const handleDevicePress = (device: CloudDevice) => {
     navigation.navigate('DeviceDetails', { device });
   };
 
-  const handleToggleDevice = async (device: ProvisionedDevice) => {
-    const mqttDeviceId = device.mqttDeviceId || device.id;
+  const handleToggleDevice = async (device: CloudDevice) => {
+    const mqttDeviceId = device.mqttDeviceId || device.localDeviceId;
     const metrics = deviceMetrics.get(mqttDeviceId);
 
     if (!metrics) {
@@ -148,10 +147,10 @@ const HomeScreen = ({ navigation }: any) => {
     }
   };
 
-  const addActivityLog = (device: ProvisionedDevice, action: string) => {
+  const addActivityLog = (device: CloudDevice, action: string) => {
     const newLog: ActivityLog = {
       id: Date.now().toString(),
-      deviceName: device.displayName || device.name,
+      deviceName: device.name,
       action,
       timestamp: Date.now(),
     };
@@ -186,8 +185,8 @@ const HomeScreen = ({ navigation }: any) => {
     }
   };
 
-  const getDeviceToggleState = (device: ProvisionedDevice): boolean => {
-    const mqttDeviceId = device.mqttDeviceId || device.id;
+  const getDeviceToggleState = (device: CloudDevice): boolean => {
+    const mqttDeviceId = device.mqttDeviceId || device.localDeviceId;
     const metrics = deviceMetrics.get(mqttDeviceId);
     if (!metrics) return false;
 
@@ -200,29 +199,44 @@ const HomeScreen = ({ navigation }: any) => {
     return false;
   };
 
-  const getDeviceDisplayName = (device: ProvisionedDevice): string => {
-    return device.displayName || device.name || 'Smart Device';
+  const getDeviceDisplayName = (device: CloudDevice): string => {
+    return device.name || 'Smart Device';
   };
 
-  const getDeviceRoom = (device: ProvisionedDevice): string => {
-    return device.roomName || 'Unassigned';
+  const getDeviceRoom = (device: CloudDevice): string => {
+    // Try to find room name from room ID
+    if (device.roomId) {
+      const room = firestoreRooms.find(r => r.id === device.roomId);
+      if (room) return room.name;
+    }
+    return 'Unassigned';
   };
 
   // Filter devices by selected room
   const filteredDevices = selectedRoom === 'All rooms'
-    ? devices
-    : devices.filter(device => normalizeRoomName(device.roomName) === normalizeRoomName(selectedRoom));
+    ? cloudDevices
+    : cloudDevices.filter(device => {
+      // Match by roomId first if available
+      if (device.roomId) {
+        const selectedRoomId = firestoreRooms.find(r => r.name === selectedRoom)?.id;
+        if (selectedRoomId) {
+          return device.roomId === selectedRoomId;
+        }
+      }
+      // Fallback to roomName matching
+      return normalizeRoomName(device.name) === normalizeRoomName(selectedRoom) || device.name === selectedRoom;
+    });
 
   const getActiveCount = (): number => {
-    return devices.filter(device => device.status === 'online' && getDeviceToggleState(device)).length;
+    return cloudDevices.filter(device => device.status === 'online' && getDeviceToggleState(device)).length;
   };
 
   const getOnlineCount = (): number => {
-    return devices.filter(device => device.status === 'online').length;
+    return cloudDevices.filter(device => device.status === 'online').length;
   };
 
   const getIdleCount = (): number => {
-    return devices.filter(device => device.status === 'online' && !getDeviceToggleState(device)).length;
+    return cloudDevices.filter(device => device.status === 'online' && !getDeviceToggleState(device)).length;
   };
 
   useEffect(() => {
@@ -312,13 +326,16 @@ const HomeScreen = ({ navigation }: any) => {
                   { color: selectedRoom === 'All rooms' ? theme.background : theme.textSecondary },
                 ]}
               >
-                All rooms ({devices.length})
+                All rooms ({cloudDevices.length})
               </Text>
             </TouchableOpacity>
 
             {/* Firestore rooms tabs */}
             {firestoreRooms.map(room => {
-              const roomCount = devices.filter(device => (device.roomName || 'Unassigned').trim().toLowerCase() === room.name.trim().toLowerCase()).length;
+              const roomCount = cloudDevices.filter(device => {
+                if (device.roomId === room.id) return true;
+                return false;
+              }).length;
               return (
                 <TouchableOpacity
                   key={room.id}
@@ -346,7 +363,7 @@ const HomeScreen = ({ navigation }: any) => {
         </ScrollView>
 
         {/* Content */}
-        {devices.length === 0 ? (
+        {cloudDevices.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>No devices found</Text>
             <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
@@ -455,16 +472,16 @@ const HomeScreen = ({ navigation }: any) => {
                   <Text style={[styles.emptyActivitySubtitle, { color: theme.textMuted }]}>
                     Device events will appear here
                   </Text>
-                  {devices.length > 0 && (
+                  {cloudDevices.length > 0 && (
                     <View style={styles.monitoringBadge}>
                       <View
                         style={[
                           styles.monitoringDot,
-                          { backgroundColor: devices.some(d => d.status === 'online') ? theme.success : theme.border },
+                          { backgroundColor: cloudDevices.some((d: CloudDevice) => d.status === 'online') ? theme.success : theme.border },
                         ]}
                       />
                       <Text style={[styles.monitoringText, { color: theme.textMuted }]}>
-                        Monitoring {devices.length} {devices.length === 1 ? 'device' : 'devices'}
+                        Monitoring {cloudDevices.length} {cloudDevices.length === 1 ? 'device' : 'devices'}
                       </Text>
                     </View>
                   )}
