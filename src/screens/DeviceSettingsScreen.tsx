@@ -18,6 +18,7 @@ import { CloudDevice } from '../types/device';
 import { deviceService } from '../services/firebase/deviceService';
 import { useTheme } from '../context/ThemeContext';
 import { useDevice } from '../contexts/DeviceContext';
+import { useRoom } from '../contexts/RoomContext';
 
 interface DeviceSettingsScreenProps {
   device: ProvisionedDevice | CloudDevice;
@@ -27,6 +28,8 @@ interface DeviceSettingsScreenProps {
 const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onDeviceRemoved }) => {
   const { theme, isDark } = useTheme();
   const { updateExistingDevice } = useDevice();
+  const { rooms: firestoreRooms } = useRoom();
+  
   // Support both ProvisionedDevice and CloudDevice
   const isCloudDevice = (dev: any): dev is CloudDevice => dev && 'mqttDeviceId' in dev;
   const cloudDevice = isCloudDevice(device) ? device : null;
@@ -46,6 +49,19 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
   );
 
   const storageService = getStorageService();
+
+  /**
+   * Find Firestore room ID by room name (normalize and match)
+   */
+  const findRoomIdByName = useCallback(
+    (roomName?: string): string | undefined => {
+      if (!roomName || roomName === 'Unassigned') return undefined;
+      const normalized = roomName.trim().toLowerCase();
+      const matchedRoom = firestoreRooms.find(room => room.name.trim().toLowerCase() === normalized);
+      return matchedRoom?.id;
+    },
+    [firestoreRooms],
+  );
 
   const loadRooms = useCallback(async () => {
     try {
@@ -78,14 +94,34 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
       setUpdatingRoom(true);
       setShowRoomPicker(false);
 
-      // Update device room in storage
-      await storageService.updateDeviceRoom(currentDevice.id, trimmedRoom);
+      // Determine roomId for Firestore (null for Unassigned, found room ID otherwise)
+      const roomId = trimmedRoom === 'Unassigned' ? null : findRoomIdByName(trimmedRoom);
 
       // Update Firestore if CloudDevice
       if (cloudDevice) {
-        console.log('[DeviceSettings] Updating CloudDevice room:', { deviceId: cloudDevice.id, roomName: trimmedRoom });
-        // Note: roomId mapping would require RoomContext, so we just pass roomName for now
-        await updateExistingDevice(cloudDevice.id, { roomName: trimmedRoom });
+        console.log('[DeviceSettings] Updating CloudDevice room:', { 
+          deviceId: cloudDevice.id, 
+          roomId, 
+          roomName: trimmedRoom 
+        });
+        // Update Firestore with both roomId and roomName
+        await updateExistingDevice(cloudDevice.id, { 
+          roomId: roomId || undefined,
+          roomName: trimmedRoom 
+        });
+
+        // Update local storage using cloudDevice.localDeviceId
+        if (cloudDevice.localDeviceId) {
+          try {
+            await storageService.updateDeviceRoom(cloudDevice.localDeviceId, trimmedRoom);
+            console.log('[DeviceSettings] Updated local storage room for CloudDevice:', cloudDevice.localDeviceId);
+          } catch (err) {
+            console.warn('[DeviceSettings] Failed to update local storage room (non-fatal):', err);
+          }
+        }
+      } else {
+        // Update device room in storage for ProvisionedDevice
+        await storageService.updateDeviceRoom(currentDevice.id, trimmedRoom);
       }
 
       // Update local state
@@ -123,6 +159,16 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
       if (cloudDevice) {
         console.log('[DeviceSettings] Renaming CloudDevice:', { deviceId: cloudDevice.id, newName: trimmedName });
         await updateExistingDevice(cloudDevice.id, { name: trimmedName });
+
+        // Also update local storage using cloudDevice.localDeviceId
+        if (cloudDevice.localDeviceId) {
+          try {
+            await storageService.updateProvisionedDevice(cloudDevice.localDeviceId, { displayName: trimmedName });
+            console.log('[DeviceSettings] Updated local storage name for CloudDevice:', cloudDevice.localDeviceId);
+          } catch (err) {
+            console.warn('[DeviceSettings] Failed to update local storage name (non-fatal):', err);
+          }
+        }
       }
 
       // Update local storage if ProvisionedDevice
@@ -371,7 +417,6 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
           <TouchableOpacity
             style={[styles.placeholderCard, { backgroundColor: theme.card, borderColor: theme.border, opacity: 0.6 }]}
             onPress={handleWiFiReconfiguration}
-            disabled={true}
           >
             <View style={styles.settingCardContent}>
               <View style={styles.settingCardLeft}>
@@ -393,7 +438,6 @@ const DeviceSettingsScreen: React.FC<DeviceSettingsScreenProps> = ({ device, onD
           <TouchableOpacity
             style={[styles.placeholderCard, { backgroundColor: theme.card, borderColor: theme.border, opacity: 0.6 }]}
             onPress={handleFactoryReset}
-            disabled={true}
           >
             <View style={styles.settingCardContent}>
               <View style={styles.settingCardLeft}>
