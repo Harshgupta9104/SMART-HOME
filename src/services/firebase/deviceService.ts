@@ -6,6 +6,7 @@ import {
   UpdateCloudDeviceInput,
   DeviceChannel,
   CreateChannelInput,
+  CreateOrUpdateChannelInput,
   UpdateChannelInput,
 } from '../../types/device';
 
@@ -255,7 +256,111 @@ export const archiveCloudDevice = async (homeId: string, deviceId: string): Prom
 };
 
 /**
- * Create a device channel
+ * Create or update a device channel with stable ID (idempotent)
+ * Stable channel ID: relay_1, relay_2, relay_3, relay_4
+ */
+export const createOrUpdateDeviceChannel = async (
+  input: CreateOrUpdateChannelInput,
+): Promise<DeviceChannel> => {
+  try {
+    const db = firestore();
+    const now = new Date().toISOString();
+
+    // Generate stable channel ID
+    const channelId = `relay_${input.channelNumber}`;
+
+    const channelRef = db
+      .collection('homes')
+      .doc(input.homeId)
+      .collection('devices')
+      .doc(input.deviceId)
+      .collection('channels')
+      .doc(channelId);
+
+    // Check if channel already exists
+    const existingSnapshot = await channelRef.get();
+
+    if (existingSnapshot.exists()) {
+      // Channel exists, update it
+      const existingChannel = existingSnapshot.data() as DeviceChannel;
+
+      const updates: Partial<DeviceChannel> = {
+        updatedAt: now,
+      };
+
+      if (input.name !== undefined) {
+        updates.name = input.name;
+      }
+      if (input.type !== undefined) {
+        updates.type = input.type;
+      }
+      if (input.state !== undefined) {
+        updates.state = input.state;
+      }
+      if (input.roomId !== undefined) {
+        updates.roomId = input.roomId;
+      }
+      if (input.roomName !== undefined) {
+        updates.roomName = input.roomName;
+      }
+      if (input.icon !== undefined) {
+        updates.icon = input.icon;
+      }
+      if (input.pin !== undefined) {
+        updates.pin = input.pin;
+      }
+      if (input.sortOrder !== undefined) {
+        updates.sortOrder = input.sortOrder;
+      }
+      if (input.metadata !== undefined) {
+        updates.metadata = input.metadata;
+      }
+
+      await channelRef.update(removeUndefinedFields(updates));
+      console.log('[DeviceService] Channel updated (existing):', channelId);
+
+      return {
+        ...existingChannel,
+        ...updates,
+      };
+    }
+
+    // Channel doesn't exist, create it
+    const newChannel: DeviceChannel = {
+      id: channelId,
+      homeId: input.homeId,
+      deviceId: input.deviceId,
+      channelNumber: input.channelNumber,
+      name: input.name || `Relay ${input.channelNumber}`,
+      type: input.type || 'relay',
+      state: input.state || 'unknown',
+      roomId: input.roomId,
+      roomName: input.roomName,
+      icon: input.icon,
+      sortOrder: input.sortOrder || input.channelNumber * 10,
+      pin: input.pin,
+      lastUpdate: now,
+      createdAt: now,
+      updatedAt: now,
+      metadata: input.metadata,
+    };
+
+    await channelRef.set(removeUndefinedFields(newChannel));
+    console.log('[DeviceService] Channel created:', channelId);
+
+    return newChannel;
+  } catch (error) {
+    console.error('[DeviceService] Failed to create/update channel', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
+    throw error;
+  }
+};
+
+/**
+ * Create a device channel (legacy - kept for backward compatibility)
+ * Prefer createOrUpdateDeviceChannel for idempotent channel creation
  */
 export const createDeviceChannel = async (input: CreateChannelInput): Promise<DeviceChannel> => {
   try {
@@ -276,11 +381,14 @@ export const createDeviceChannel = async (input: CreateChannelInput): Promise<De
       id: channelId,
       deviceId: input.deviceId,
       homeId: input.homeId,
+      channelNumber: 1, // Default to 1 for legacy calls
       name: input.name,
       type: input.type,
-      pin: input.pin,
       state: 'unknown',
+      pin: input.pin,
+      sortOrder: 10,
       lastUpdate: now,
+      createdAt: now,
       updatedAt: now,
     };
 
@@ -315,9 +423,74 @@ export const getChannelsForDevice = async (homeId: string, deviceId: string): Pr
       return [];
     }
 
-    return channelsSnapshot.docs.map(doc => doc.data() as DeviceChannel);
+    const channels = channelsSnapshot.docs.map(doc => doc.data() as DeviceChannel);
+    // Sort by sortOrder or channelNumber
+    return channels.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   } catch (error) {
     console.error('[DeviceService] Failed to get channels', {
+      code: (error as any)?.code,
+      message: (error as any)?.message,
+    });
+    throw error;
+  }
+};
+
+/**
+ * Ensure channels exist for a device (create if missing)
+ * Idempotent: safe to call multiple times
+ * Normalizes channelCount and creates channels 1 to channelCount
+ */
+export const ensureChannelsForDevice = async (
+  homeId: string,
+  deviceId: string,
+  channelCount: number,
+  options?: {
+    roomId?: string;
+    roomName?: string;
+  },
+): Promise<DeviceChannel[]> => {
+  try {
+    // Normalize channelCount
+    let normalizedCount = channelCount;
+    if (!Number.isInteger(normalizedCount) || normalizedCount < 1) {
+      normalizedCount = 1;
+    }
+    if (normalizedCount > 16) {
+      normalizedCount = 16; // Cap at 16 for safety
+    }
+
+    console.log('[DeviceService] Ensuring channels for device:', {
+      deviceId,
+      channelCount: normalizedCount,
+    });
+
+    // Create or update each channel
+    const channelPromises: Promise<DeviceChannel>[] = [];
+    for (let i = 1; i <= normalizedCount; i++) {
+      channelPromises.push(
+        createOrUpdateDeviceChannel({
+          homeId,
+          deviceId,
+          channelNumber: i,
+          name: `Relay ${i}`,
+          type: 'relay',
+          state: 'unknown',
+          sortOrder: i * 10,
+          roomId: options?.roomId,
+          roomName: options?.roomName,
+        }),
+      );
+    }
+
+    const channels = await Promise.all(channelPromises);
+    console.log('[DeviceService] Channels ensured for device:', {
+      deviceId,
+      count: channels.length,
+    });
+
+    return channels.sort((a, b) => a.channelNumber - b.channelNumber);
+  } catch (error) {
+    console.error('[DeviceService] Failed to ensure channels', {
       code: (error as any)?.code,
       message: (error as any)?.message,
     });
@@ -410,8 +583,10 @@ export const deviceService = {
   getCloudDevice,
   updateCloudDevice,
   archiveCloudDevice,
+  createOrUpdateDeviceChannel,
   createDeviceChannel,
   getChannelsForDevice,
+  ensureChannelsForDevice,
   updateDeviceChannel,
   mapProvisionedDeviceToCloudDevice,
 };

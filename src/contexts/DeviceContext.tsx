@@ -12,8 +12,10 @@ import {
   updateCloudDevice,
   archiveCloudDevice,
   mapProvisionedDeviceToCloudDevice,
+  ensureChannelsForDevice,
+  getChannelsForDevice,
 } from '../services/firebase/deviceService';
-import { CloudDevice, UpdateCloudDeviceInput } from '../types/device';
+import { CloudDevice, UpdateCloudDeviceInput, DeviceChannel } from '../types/device';
 import { useAuth } from './AuthContext';
 import { useHome } from './HomeContext';
 import { useRoom } from './RoomContext';
@@ -23,6 +25,7 @@ export type DeviceLoadingState = 'idle' | 'loading' | 'ready' | 'error';
 
 type DeviceContextValue = {
   devices: CloudDevice[];
+  channelsByDeviceId: Record<string, DeviceChannel[]>;
   loadingState: DeviceLoadingState;
   error: string | null;
   refreshDevices: () => Promise<void>;
@@ -30,6 +33,8 @@ type DeviceContextValue = {
   registerCloudDevice: (localDevice: ProvisionedDevice) => Promise<CloudDevice | null>;
   updateExistingDevice: (deviceId: string, updates: UpdateCloudDeviceInput) => Promise<CloudDevice | null>;
   archiveExistingDevice: (deviceId: string) => Promise<boolean>;
+  refreshChannelsForDevice: (deviceId: string) => Promise<DeviceChannel[]>;
+  getChannelsForDeviceFromContext: (deviceId: string) => DeviceChannel[];
 };
 
 const DeviceContext = createContext<DeviceContextValue | undefined>(undefined);
@@ -43,6 +48,7 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
   const { activeHome, loadingState: homeLoadingState } = useHome();
   const { rooms: firestoreRooms } = useRoom();
   const [devices, setDevices] = useState<CloudDevice[]>([]);
+  const [channelsByDeviceId, setChannelsByDeviceId] = useState<Record<string, DeviceChannel[]>>({});
   const [loadingState, setLoadingState] = useState<DeviceLoadingState>('idle');
   const [error, setError] = useState<string | null>(null);
   const syncAttemptedRef = React.useRef(false);
@@ -278,9 +284,93 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
     [activeHome, loadDevices],
   );
 
+  /**
+   * Get channels for a specific device from context
+   */
+  const getChannelsForDeviceFromContext = React.useCallback(
+    (deviceId: string): DeviceChannel[] => {
+      return channelsByDeviceId[deviceId] || [];
+    },
+    [channelsByDeviceId],
+  );
+
+  /**
+   * Refresh channels for a specific device
+   */
+  const refreshChannelsForDevice = React.useCallback(
+    async (deviceId: string): Promise<DeviceChannel[]> => {
+      if (!activeHome) {
+        console.log('[DeviceContext] Cannot refresh channels: no active home');
+        return [];
+      }
+
+      try {
+        const channels = await getChannelsForDevice(activeHome.id, deviceId);
+        setChannelsByDeviceId(prev => ({
+          ...prev,
+          [deviceId]: channels,
+        }));
+        return channels;
+      } catch (err) {
+        console.error('[DeviceContext] Failed to refresh channels for device:', {
+          deviceId,
+          error: (err as any).message,
+        });
+        return [];
+      }
+    },
+    [activeHome],
+  );
+
+  /**
+   * Ensure channels for all loaded devices
+   */
+  const ensureAllDeviceChannels = React.useCallback(async () => {
+    if (!activeHome) return;
+
+    try {
+      for (const device of devices) {
+        try {
+          await ensureChannelsForDevice(
+            activeHome.id,
+            device.id,
+            device.channelCount || 1,
+            {
+              roomId: device.roomId,
+              roomName: device.roomName,
+            },
+          );
+
+          // Load channels after ensuring they exist
+          await refreshChannelsForDevice(device.id);
+        } catch (err) {
+          console.warn('[DeviceContext] Failed to ensure channels for device:', {
+            deviceId: device.id,
+            error: (err as any).message,
+          });
+          // Continue with other devices
+        }
+      }
+
+      console.log('[DeviceContext] Device channels ensured for all devices');
+    } catch (err) {
+      console.error('[DeviceContext] Failed to ensure all device channels:', err);
+    }
+  }, [activeHome, devices, refreshChannelsForDevice]);
+
+  /**
+   * Auto-ensure channels after devices load
+   */
+  useEffect(() => {
+    if (loadingState === 'ready' && activeHome && devices.length > 0) {
+      ensureAllDeviceChannels();
+    }
+  }, [loadingState, activeHome, devices, ensureAllDeviceChannels]);
+
   const value = useMemo<DeviceContextValue>(
     () => ({
       devices,
+      channelsByDeviceId,
       loadingState,
       error,
       refreshDevices,
@@ -288,9 +378,12 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
       registerCloudDevice,
       updateExistingDevice,
       archiveExistingDevice,
+      refreshChannelsForDevice,
+      getChannelsForDeviceFromContext,
     }),
     [
       devices,
+      channelsByDeviceId,
       loadingState,
       error,
       refreshDevices,
@@ -298,6 +391,8 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
       registerCloudDevice,
       updateExistingDevice,
       archiveExistingDevice,
+      refreshChannelsForDevice,
+      getChannelsForDeviceFromContext,
     ],
   );
 

@@ -9,17 +9,25 @@ export type ChannelState = 'on' | 'off' | 'unknown';
 /**
  * Cloud device channel stored at: homes/{homeId}/devices/{deviceId}/channels/{channelId}
  * Represents a physical relay, switch, or dimmer on the device
+ * Stable ID format: relay_1, relay_2, relay_3, relay_4
  */
 export interface DeviceChannel {
-  id: string;
-  deviceId: string;
+  id: string; // Stable ID: relay_1, relay_2, etc.
   homeId: string;
-  name: string;
+  deviceId: string;
+  channelNumber: number; // 1-based channel number
+  name: string; // User-friendly name or default "Relay 1"
   type: ChannelType;
-  pin?: number;
   state: ChannelState;
-  lastUpdate: string;
-  updatedAt: string;
+  roomId?: string; // Optional room reference
+  roomName?: string; // Optional room name
+  icon?: string; // Optional icon name
+  sortOrder: number; // Display order (usually channelNumber * 10)
+  pin?: number; // Optional GPIO pin
+  lastUpdate: string; // ISO timestamp of last state update
+  createdAt: string; // ISO timestamp of creation
+  updatedAt: string; // ISO timestamp of last update
+  metadata?: Record<string, any>; // Additional metadata
 }
 
 /**
@@ -98,6 +106,24 @@ export interface CreateChannelInput {
   name: string;
   type: ChannelType;
   pin?: number;
+}
+
+/**
+ * Input for creating or updating a device channel with stable ID
+ */
+export interface CreateOrUpdateChannelInput {
+  homeId: string;
+  deviceId: string;
+  channelNumber: number;
+  name?: string;
+  type?: ChannelType;
+  state?: ChannelState;
+  roomId?: string;
+  roomName?: string;
+  icon?: string;
+  pin?: number;
+  sortOrder?: number;
+  metadata?: Record<string, any>;
 }
 
 /**
