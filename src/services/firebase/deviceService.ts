@@ -280,8 +280,12 @@ export const createOrUpdateDeviceChannel = async (
     // Check if channel already exists
     const existingSnapshot = await channelRef.get();
 
-    // @ts-ignore - React Native Firebase uses exists as property, not method
-    if (existingSnapshot.exists) {
+    const snapshotExists =
+      typeof (existingSnapshot as any).exists === 'function'
+        ? (existingSnapshot as any).exists()
+        : Boolean((existingSnapshot as any).exists);
+
+    if (snapshotExists) {
       // Channel exists, update it
       const existingChannel = existingSnapshot.data() as DeviceChannel;
 
