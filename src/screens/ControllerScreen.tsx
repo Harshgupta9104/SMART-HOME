@@ -13,22 +13,29 @@ import { CloudDevice, DeviceChannel } from '../types/device';
 import { getDeviceDataService, DeviceMetrics } from '../services/deviceDataService';
 import { useTheme } from '../context/ThemeContext';
 import { useDevice } from '../contexts/DeviceContext';
+
 interface ControllerScreenProps {
   device: ProvisionedDevice | CloudDevice;
+  homeId?: string; // Needed for Firestore updates
 }
-const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
+
+const ControllerScreen: React.FC<ControllerScreenProps> = ({ device, homeId }) => {
   const { theme } = useTheme();
-  const { getChannelsForDeviceFromContext, refreshChannelsForDevice } = useDevice();
+  const { getChannelsForDeviceFromContext, refreshChannelsForDevice, updateExistingChannel } = useDevice();
   const [relayStatus, setRelayStatus] = useState(false);
   const [isUpdatingRelay, setIsUpdatingRelay] = useState(false);
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null);
   const [channels, setChannels] = useState<DeviceChannel[]>([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
+  const [updatingChannelId, setUpdatingChannelId] = useState<string | null>(null);
+
   // Animations
   const glowAnim = useRef(new Animated.Value(0)).current;       // pulsing glow radius
   const scaleAnim = useRef(new Animated.Value(1)).current;      // press scale
   const glowLoop = useRef<Animated.CompositeAnimation | null>(null);
+
   const deviceDataService = getDeviceDataService();
+
   // Get device ID for both ProvisionedDevice and CloudDevice
   const getDeviceId = () => {
     if ((device as CloudDevice).mqttDeviceId) {
@@ -36,6 +43,19 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
     }
     return device.id;
   };
+
+  // Get cloud device ID (Firestore ID) if available
+  const getCloudDeviceId = () => {
+    const cloudDevice = device as CloudDevice;
+    return cloudDevice.id || null;
+  };
+
+  // Get home ID from cloud device or prop
+  const getHomeId = () => {
+    const cloudDevice = device as CloudDevice;
+    return cloudDevice.homeId || homeId;
+  };
+
   // Subscribe to real MQTT state — UI always reflects device truth
   useEffect(() => {
     if (!device) return;
@@ -47,6 +67,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
     return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device, deviceDataService]);
+
   // Load cloud channels if this is a CloudDevice
   useEffect(() => {
     const loadChannels = async () => {
@@ -72,6 +93,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
     };
     loadChannels();
   }, [device, getChannelsForDeviceFromContext, refreshChannelsForDevice]);
+
   // Pulsing glow when relay is OFF (inverted logic)
   useEffect(() => {
     if (!relayStatus) {  // ← Changed from "if (relayStatus)" to "if (!relayStatus)"
@@ -87,18 +109,99 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       Animated.timing(glowAnim, { toValue: 0, duration: 400, useNativeDriver: false }).start();
     }
   }, [relayStatus, glowAnim]);
+
+  // Handle per-channel toggle with Firestore sync
+  const handleChannelToggle = async (channel: DeviceChannel) => {
+    if (updatingChannelId === channel.id) {
+      // Already updating this channel
+      return;
+    }
+
+    const cloudDeviceId = getCloudDeviceId();
+    const currentHomeId = getHomeId();
+    const mqttDeviceId = getDeviceId();
+
+    if (!cloudDeviceId || !currentHomeId) {
+      console.warn('[ControllerScreen] Cannot toggle channel: missing device or home ID');
+      return;
+    }
+
+    setUpdatingChannelId(channel.id);
+
+    try {
+      // Determine next state
+      let nextState: 'on' | 'off';
+      if (channel.state === 'on') {
+        nextState = 'off';
+      } else if (channel.state === 'off') {
+        nextState = 'on';
+      } else {
+        // unknown state → turn on
+        nextState = 'on';
+      }
+
+      console.log('[ControllerScreen] Toggling channel:', {
+        channelId: channel.id,
+        channelNumber: channel.channelNumber,
+        currentState: channel.state,
+        nextState,
+      });
+
+      // Send MQTT command and update Firestore
+      const success = await deviceDataService.updateRelayChannelStatus(
+        currentHomeId,
+        cloudDeviceId,
+        mqttDeviceId,
+        channel.id,
+        channel.channelNumber,
+        nextState,
+      );
+
+      if (!success) {
+        console.warn('[ControllerScreen] Failed to toggle channel:', channel.id);
+        setUpdatingChannelId(null);
+        return;
+      }
+
+      // Update local channel state immediately for UI responsiveness
+      const updatedChannel = await updateExistingChannel(cloudDeviceId, channel.id, {
+        state: nextState,
+      });
+
+      if (updatedChannel) {
+        // Update local channels list
+        setChannels(prevChannels =>
+          prevChannels.map(ch => (ch.id === channel.id ? updatedChannel : ch))
+        );
+      }
+
+      console.log('[ControllerScreen] Channel toggled successfully:', channel.id);
+    } catch (error) {
+      console.error('[ControllerScreen] Error toggling channel:', {
+        channelId: channel.id,
+        error,
+      });
+    } finally {
+      setUpdatingChannelId(null);
+    }
+  };
+
+  // Legacy single relay handler (for backward compatibility)
   const handleRelayPress = async () => {
     if (isUpdatingRelay) return;
+
     // Press scale animation
     Animated.sequence([
       Animated.timing(scaleAnim, { toValue: 0.93, duration: 100, useNativeDriver: true }),
       Animated.timing(scaleAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
     ]).start();
+
     setIsUpdatingRelay(true);
     try {
       const mqttDeviceId = getDeviceId();
       const newState = !relayStatus;
       console.log('[Controller] Sending relay command:', newState ? 'ON' : 'OFF');
+
       // Send command and wait for MQTT response
       const success = await deviceDataService.updateRelayStatus(mqttDeviceId, newState);
       if (!success) {
@@ -106,6 +209,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
         setIsUpdatingRelay(false);
         return;
       }
+
       // Wait max 2 seconds for response, then unlock button
       setTimeout(() => {
         setIsUpdatingRelay(false);
@@ -115,6 +219,7 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       setIsUpdatingRelay(false);
     }
   };
+
   // Interpolated glow values (not useNativeDriver — shadow props)
   const glowRadius = glowAnim.interpolate({
     inputRange: [0, 1],
@@ -128,6 +233,10 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
     inputRange: [0, 1],
     outputRange: [0, 1],
   });
+
+  // Determine if this is a CloudDevice with channels
+  const isCloudDevice = (device as CloudDevice).id && channels.length > 0;
+
   return (
     <ScrollView
       style={styles.container}
@@ -135,50 +244,70 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
       showsVerticalScrollIndicator={false}
     >
       {/* Show channel list for CloudDevice, or single relay for ProvisionedDevice */}
-      {channels.length > 0 ? (
+      {isCloudDevice ? (
         // Multi-relay UI from cloud channels
         <View>
           <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>RELAYS ({channels.length})</Text>
-          {channels.map((channel) => (
-            <View key={channel.id} style={[styles.channelCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={styles.channelHeader}>
-                <View style={styles.channelInfo}>
-                  <Text style={[styles.channelName, { color: theme.textPrimary }]}>
-                    {channel.name || `Relay ${channel.channelNumber}`}
-                  </Text>
-                  <Text style={[styles.channelNumber, { color: theme.textSecondary }]}>
-                    Channel {channel.channelNumber}
-                  </Text>
+          {channels.map((channel) => {
+            const isUpdating = updatingChannelId === channel.id;
+
+            return (
+              <View
+                key={channel.id}
+                style={[styles.channelCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              >
+                <View style={styles.channelHeader}>
+                  <View style={styles.channelInfo}>
+                    <Text style={[styles.channelName, { color: theme.textPrimary }]}>
+                      {channel.name || `Relay ${channel.channelNumber}`}
+                    </Text>
+                    <Text style={[styles.channelNumber, { color: theme.textSecondary }]}>
+                      Channel {channel.channelNumber}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.stateBadge,
+                      {
+                        backgroundColor:
+                          channel.state === 'on'
+                            ? theme.success
+                            : channel.state === 'off'
+                              ? theme.danger
+                              : theme.warning,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.stateBadgeText, { color: theme.background }]}>
+                      {channel.state === 'unknown' ? 'Unknown' : channel.state?.toUpperCase() || 'OFF'}
+                    </Text>
+                  </View>
                 </View>
-                <View style={[styles.stateBadge, {
-                  backgroundColor: channel.state === 'on' ? theme.success : channel.state === 'off' ? theme.danger : theme.warning
-                }]}>
-                  <Text style={[styles.stateBadgeText, { color: theme.background }]}>
-                    {channel.state === 'unknown' ? 'Unknown' : channel.state?.toUpperCase() || 'OFF'}
-                  </Text>
-                </View>
+
+                {channel.channelNumber === 1 ? (
+                  // Relay 1 is controllable
+                  <TouchableOpacity
+                    style={[styles.channelToggleButton, { backgroundColor: theme.primarySoft }]}
+                    onPress={() => handleChannelToggle(channel)}
+                    disabled={isUpdating}
+                  >
+                    <Text style={[styles.channelToggleText, { color: theme.primary }]}>
+                      {isUpdating
+                        ? 'Updating...'
+                        : `Turn ${channel.state === 'on' ? 'OFF' : 'ON'}`}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  // Other relays show MQTT support pending
+                  <View style={[styles.channelToggleButton, { backgroundColor: theme.background, opacity: 0.5 }]}>
+                    <Text style={[styles.channelToggleText, { color: theme.textMuted }]}>
+                      MQTT support pending
+                    </Text>
+                  </View>
+                )}
               </View>
-              {channel.channelNumber === 1 ? (
-                // Relay 1 is controllable
-                <TouchableOpacity
-                  style={[styles.channelToggleButton, { backgroundColor: theme.primarySoft }]}
-                  onPress={handleRelayPress}
-                  disabled={isUpdatingRelay}
-                >
-                  <Text style={[styles.channelToggleText, { color: theme.primary }]}>
-                    {isUpdatingRelay ? 'Updating...' : `Turn ${relayStatus ? 'OFF' : 'ON'}`}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                // Other relays show coming soon
-                <View style={[styles.channelToggleButton, { backgroundColor: theme.background, opacity: 0.5 }]}>
-                  <Text style={[styles.channelToggleText, { color: theme.textMuted }]}>
-                    Coming Soon
-                  </Text>
-                </View>
-              )}
-            </View>
-          ))}
+            );
+          })}
         </View>
       ) : loadingChannels ? (
         // Loading indicator
@@ -191,85 +320,90 @@ const ControllerScreen: React.FC<ControllerScreenProps> = ({ device }) => {
         <View>
           {/* Relay Control Card */}
           <View style={styles.controlCard}>
-        {/* Card background glow when ON */}
-        <Animated.View
-          style={[
-            styles.cardGlow,
-            {
-              opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.18] }),
-              backgroundColor: theme.danger,
-            },
-          ]}
-          pointerEvents="none"
-        />
-        {/* Label */}
-        <Text style={styles.controlName}>Relay Control (GPIO23)</Text>
-        {/* Tappable Relay Button */}
-        <Animated.View style={{ transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
-          <TouchableOpacity
-            onPress={handleRelayPress}
-            activeOpacity={0.85}
-            disabled={isUpdatingRelay}
-            style={styles.relayTouchable}
-          >
-            {/* Outer glow ring */}
+            {/* Card background glow when ON */}
             <Animated.View
               style={[
-                styles.glowRing,
+                styles.cardGlow,
                 {
-                  opacity: ringOpacity,
-                  shadowRadius: glowRadius,
-                  shadowOpacity: glowOpacity,
-                  shadowColor: theme.danger,
-                  borderColor: relayStatus ? theme.danger : 'transparent',
+                  opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.18] }),
+                  backgroundColor: theme.danger,
                 },
               ]}
+              pointerEvents="none"
             />
-            {/* Relay circle */}
-            <View style={[styles.relayCircle, relayStatus && styles.relayCircleOn]}>
-              <Text style={[styles.relayIcon, relayStatus && styles.relayIconOn]}>
-                {isUpdatingRelay ? 'Updating...' : 'Relay'}
+            {/* Label */}
+            <Text style={styles.controlName}>Relay Control (GPIO23)</Text>
+            {/* Tappable Relay Button */}
+            <Animated.View style={{ transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={handleRelayPress}
+                activeOpacity={0.85}
+                disabled={isUpdatingRelay}
+                style={styles.relayTouchable}
+              >
+                {/* Outer glow ring */}
+                <Animated.View
+                  style={[
+                    styles.glowRing,
+                    {
+                      opacity: ringOpacity,
+                      shadowRadius: glowRadius,
+                      shadowOpacity: glowOpacity,
+                      shadowColor: theme.danger,
+                      borderColor: relayStatus ? theme.danger : 'transparent',
+                    },
+                  ]}
+                />
+                {/* Relay circle */}
+                <View style={[styles.relayCircle, relayStatus && styles.relayCircleOn]}>
+                  <Text style={[styles.relayIcon, relayStatus && styles.relayIconOn]}>
+                    {isUpdatingRelay ? 'Updating...' : 'Relay'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+            {/* Status text */}
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, relayStatus ? styles.statusDotOn : styles.statusDotOff]} />
+              <Text style={[styles.statusLabel, { color: relayStatus ? theme.danger : theme.textMuted }]}>
+                {isUpdatingRelay
+                  ? 'Updating...'
+                  : relayStatus
+                    ? 'OFF  —  Relay is off'
+                    : 'ON  —  Relay is active'}
               </Text>
             </View>
-          </TouchableOpacity>
-        </Animated.View>
-        {/* Status text */}
-        <View style={styles.statusRow}>
-          <View style={[styles.statusDot, relayStatus ? styles.statusDotOn : styles.statusDotOff]} />
-          <Text style={[styles.statusLabel, { color: relayStatus ? theme.danger : theme.textMuted }]}>
-            {isUpdatingRelay ? 'Updating...' : relayStatus ? 'OFF  —  Relay is off' : 'ON  —  Relay is active'}
-          </Text>
-        </View>
-        {/* Tap hint */}
-        <Text style={styles.tapHint}>Tap the relay to toggle</Text>
-      </View>
-      {/* Quick Stats */}
-      <View style={styles.statsCard}>
-        <Text style={styles.statsTitle}>Quick Stats</Text>
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Uptime</Text>
-          <Text style={styles.statValue}>
-            {metrics?.uptime !== undefined ? `${Math.floor(metrics.uptime / 3600)}h` : 'N/A'}
-          </Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Free Heap</Text>
-          <Text style={styles.statValue}>
-            {metrics?.freeHeap !== undefined ? `${Math.floor(metrics.freeHeap / 1024)} KB` : 'N/A'}
-          </Text>
-        </View>
-        <View style={[styles.statRow, styles.statRowLast]}>
-          <Text style={styles.statLabel}>WiFi RSSI</Text>
-          <Text style={styles.statValue}>
-            {metrics?.wifiRSSI !== undefined ? `${metrics.wifiRSSI} dBm` : 'N/A'}
-          </Text>
-        </View>
-      </View>
+            {/* Tap hint */}
+            <Text style={styles.tapHint}>Tap the relay to toggle</Text>
+          </View>
+          {/* Quick Stats */}
+          <View style={styles.statsCard}>
+            <Text style={styles.statsTitle}>Quick Stats</Text>
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>Uptime</Text>
+              <Text style={styles.statValue}>
+                {metrics?.uptime !== undefined ? `${Math.floor(metrics.uptime / 3600)}h` : 'N/A'}
+              </Text>
+            </View>
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>Free Heap</Text>
+              <Text style={styles.statValue}>
+                {metrics?.freeHeap !== undefined ? `${Math.floor(metrics.freeHeap / 1024)} KB` : 'N/A'}
+              </Text>
+            </View>
+            <View style={[styles.statRow, styles.statRowLast]}>
+              <Text style={styles.statLabel}>WiFi RSSI</Text>
+              <Text style={styles.statValue}>
+                {metrics?.wifiRSSI !== undefined ? `${metrics.wifiRSSI} dBm` : 'N/A'}
+              </Text>
+            </View>
+          </View>
         </View>
       )}
     </ScrollView>
   );
 };
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -295,7 +429,10 @@ const styles = StyleSheet.create({
   },
   cardGlow: {
     position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderRadius: 28,
   },
   controlName: {
@@ -357,8 +494,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  statusDotOff: {
-  },
+  statusDotOff: {},
   statusLabel: {
     fontSize: 13,
     fontWeight: '600',
@@ -470,4 +606,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
 export default ControllerScreen;

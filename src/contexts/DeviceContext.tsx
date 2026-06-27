@@ -14,8 +14,9 @@ import {
   mapProvisionedDeviceToCloudDevice,
   ensureChannelsForDevice,
   getChannelsForDevice,
+  updateDeviceChannel,
 } from '../services/firebase/deviceService';
-import { CloudDevice, UpdateCloudDeviceInput, DeviceChannel } from '../types/device';
+import { CloudDevice, UpdateCloudDeviceInput, DeviceChannel, UpdateChannelInput } from '../types/device';
 import { useAuth } from './AuthContext';
 import { useHome } from './HomeContext';
 import { useRoom } from './RoomContext';
@@ -35,6 +36,7 @@ type DeviceContextValue = {
   archiveExistingDevice: (deviceId: string) => Promise<boolean>;
   refreshChannelsForDevice: (deviceId: string) => Promise<DeviceChannel[]>;
   getChannelsForDeviceFromContext: (deviceId: string) => DeviceChannel[];
+  updateExistingChannel: (deviceId: string, channelId: string, updates: UpdateChannelInput) => Promise<DeviceChannel | null>;
 };
 
 const DeviceContext = createContext<DeviceContextValue | undefined>(undefined);
@@ -285,6 +287,41 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
   );
 
   /**
+   * Update a specific channel for a device
+   */
+  const updateExistingChannel = React.useCallback(
+    async (deviceId: string, channelId: string, updates: UpdateChannelInput): Promise<DeviceChannel | null> => {
+      if (!activeHome) {
+        console.error('[DeviceContext] No active home');
+        return null;
+      }
+
+      try {
+        const updatedChannel = await updateDeviceChannel(activeHome.id, deviceId, channelId, updates);
+
+        // Update local cache immutably
+        setChannelsByDeviceId(prev => ({
+          ...prev,
+          [deviceId]: (prev[deviceId] || []).map(ch =>
+            ch.id === channelId ? updatedChannel : ch
+          ),
+        }));
+
+        console.log('[DeviceContext] Channel updated:', { deviceId, channelId });
+        return updatedChannel;
+      } catch (err) {
+        console.error('[DeviceContext] Failed to update channel:', {
+          deviceId,
+          channelId,
+          error: (err as any)?.message,
+        });
+        return null;
+      }
+    },
+    [activeHome],
+  );
+
+  /**
    * Get channels for a specific device from context
    */
   const getChannelsForDeviceFromContext = React.useCallback(
@@ -378,6 +415,7 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
       registerCloudDevice,
       updateExistingDevice,
       archiveExistingDevice,
+      updateExistingChannel,
       refreshChannelsForDevice,
       getChannelsForDeviceFromContext,
     }),
@@ -391,6 +429,7 @@ export const DeviceProvider = ({ children }: DeviceProviderProps) => {
       registerCloudDevice,
       updateExistingDevice,
       archiveExistingDevice,
+      updateExistingChannel,
       refreshChannelsForDevice,
       getChannelsForDeviceFromContext,
     ],

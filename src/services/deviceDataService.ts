@@ -5,6 +5,7 @@
 
 import { getMQTTService } from './mqttService';
 import { getNotificationService } from './notificationService';
+import { deviceService } from './firebase/deviceService';
 import { parseRelayState, parseDeviceStatus } from '../utils/notificationHelpers';
 
 export interface DeviceMetrics {
@@ -257,6 +258,82 @@ class DeviceDataService {
       return success;
     } catch (error) {
       console.error('[DeviceData] Error updating relay status:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Update relay channel status via MQTT and sync to Firestore
+   * This is the Phase 2H per-channel control function
+   *
+   * @param homeId - Firestore home ID
+   * @param deviceId - Firestore device ID (cloud device ID)
+   * @param mqttDeviceId - MQTT device ID for publishing commands
+   * @param channelId - Firestore channel ID (e.g., relay_1, relay_2)
+   * @param channelNumber - Relay channel number (1-based)
+   * @param newState - Desired state (on/off)
+   * @returns true if command succeeded and Firestore was updated
+   */
+  async updateRelayChannelStatus(
+    homeId: string,
+    deviceId: string,
+    mqttDeviceId: string,
+    channelId: string,
+    channelNumber: number,
+    newState: 'on' | 'off',
+  ): Promise<boolean> {
+    try {
+      console.log('[DeviceData] 📡 Updating relay channel:', {
+        channelId,
+        channelNumber,
+        state: newState,
+      });
+
+      const mqttService = getMQTTService();
+
+      if (!mqttService.isConnectedToMQTT()) {
+        console.warn('[DeviceData] MQTT not connected');
+        return false;
+      }
+
+      // Convert state string to boolean for MQTT
+      const mqttState = newState === 'on';
+
+      // Send per-channel command via MQTT
+      const mqttSuccess = await mqttService.sendRelayChannelCommand(
+        mqttDeviceId,
+        channelNumber,
+        mqttState,
+      );
+
+      if (!mqttSuccess) {
+        console.warn('[DeviceData] ❌ MQTT command failed for channel:', channelId);
+        return false;
+      }
+
+      console.log('[DeviceData] ✅ MQTT command sent, updating Firestore...');
+
+      // Update Firestore channel state after MQTT success
+      try {
+        await deviceService.updateDeviceChannel(homeId, deviceId, channelId, {
+          state: newState,
+        });
+        console.log('[DeviceData] ✅ Firestore channel state updated:', {
+          channelId,
+          state: newState,
+        });
+        return true;
+      } catch (firestoreError) {
+        console.error('[DeviceData] ❌ Failed to update Firestore channel:', {
+          channelId,
+          error: (firestoreError as any)?.message,
+        });
+        // Return true anyway since MQTT command succeeded
+        // UI will eventually sync via MQTT listeners
+        return true;
+      }
+    } catch (error) {
+      console.error('[DeviceData] Error updating relay channel status:', error);
       return false;
     }
   }

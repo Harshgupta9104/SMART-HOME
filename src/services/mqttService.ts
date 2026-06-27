@@ -321,6 +321,49 @@ class MqttService {
   }
 
   /**
+   * Send per-channel relay command (for multi-relay devices)
+   * Currently maps to the single relay (GPIO23) for Relay 1
+   * Relay 2+ will be supported when firmware implements multi-relay MQTT topics
+   *
+   * @param deviceId - MQTT device ID
+   * @param channelNumber - Relay channel number (1-based, typically 1-4)
+   * @param state - Desired state (true = ON, false = OFF)
+   * @returns true if command sent successfully
+   */
+  async sendRelayChannelCommand(
+    deviceId: string,
+    channelNumber: number,
+    state: boolean,
+  ): Promise<boolean> {
+    if (!this.isConnectedToMQTT()) {
+      console.warn('[MQTT] ⚠️ Not connected, cannot send relay channel command');
+      return false;
+    }
+
+    try {
+      // For channel 1, use the existing relay topic (backward compatible)
+      if (channelNumber === 1) {
+        console.log('[MQTT] 🔌 Sending relay command for channel 1 (legacy GPIO23)');
+        return await this.sendRelayCommand(deviceId, state);
+      }
+
+      // For channels 2+, the firmware does not yet support per-relay MQTT topics
+      // This would require firmware extension to support topics like:
+      // esp32/{deviceId}/relay/{channelNumber}/set
+      // For now, return false with a clear message
+      console.warn(
+        '[MQTT] ⚠️ Channel',
+        channelNumber,
+        'is not supported yet. Firmware must implement per-relay MQTT topics.',
+      );
+      return false;
+    } catch (error) {
+      console.error('[MQTT] ❌ Send relay channel command error:', error);
+      return false;
+    }
+  }
+
+  /**
    * Send WiFi update command
    */
   async sendWiFiUpdate(deviceId: string, ssid: string, password: string): Promise<boolean> {
